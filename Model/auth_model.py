@@ -81,7 +81,7 @@ class AuthModel:
             if response.status_code == 200:
                 return True, "Signup successful", ""
             else:
-                return False, "both", "User already exists"
+                return False, "both", response.text
             
         except Exception as e:
             print(f"API request error: {e}")
