@@ -8,6 +8,7 @@ from PySide6.QtGui import (QColor, QFont, QPainter, QPixmap, QPen, QLinearGradie
 from PySide6.QtCore import Qt, QSize, QRect, Signal
 # In auth_page.py
 from View.shared_components import ColorPalette, GlobalStyle, AvatarWidget
+from PySide6.QtCore import QObject, QEvent
 
 class SocialLoginButton(QPushButton):
     """Custom social login button with icon and styling"""
@@ -98,12 +99,14 @@ class AuthenticationManager:
         return True, "Password reset link sent to your email"
 
 class LoginPage(QWidget):
-    def __init__(self, parent=None):
-        super().__init__(parent)
 
-        login_requested = Signal(str, str)  # email, password
-        signup_requested = Signal(str, str, str, str, bool)  # name, email, password, confirm_password, terms_accepted
-        forgot_password_requested = Signal(str)  # email
+    login_requested = Signal(str, str)  # email, password
+    signup_requested = Signal(str, str, str, str, bool)  # name, email, password, confirm_password, terms_accepted
+    forgot_password_requested = Signal(str)  # email
+
+    def __init__(self, parent=None):
+
+        super().__init__(parent)
 
         # Set up main layout
         main_layout = QHBoxLayout(self)
@@ -119,10 +122,30 @@ class LoginPage(QWidget):
         main_layout.addWidget(left_side, 1)
         main_layout.addWidget(right_side, 1)
 
-    # Add methods for the presenter to call
-    def show_error_message(self, title, message):
-        QMessageBox.warning(self, title, message)
+    # Add these methods to make UI elements easier to access
+    def get_login_button(self):
+        return self.findChild(QPushButton, "login_btn")
     
+    def get_signup_button(self):
+        return self.findChild(QPushButton, "signup_btn")
+        
+    def get_login_credentials(self):
+        email = self.findChild(QLineEdit, "email_input").text()
+        password = self.findChild(QLineEdit, "password_input").text()
+        return email, password
+
+    # Add methods for the presenter to call
+
+        QMessageBox.warning(self, title, message)
+
+    def get_signup_credentials(self):
+        name = self.findChild(QLineEdit, "signup_name_input").text()
+        email = self.findChild(QLineEdit, "signup_email_input").text()
+        password = self.findChild(QLineEdit, "signup_password_input").text()
+        confirm_password = self.findChild(QLineEdit, "signup_confirm_password_input").text()
+        terms_accepted = self.findChild(QCheckBox, "terms_check").isChecked()
+        return name, email, password, confirm_password, terms_accepted
+
     def show_success_message(self, title, message):
         QMessageBox.information(self, title, message)
     
@@ -243,6 +266,21 @@ class LoginPage(QWidget):
             font-size: 24px;
             font-weight: bold;
         """)
+
+        error_label = QLabel()
+        error_label.setObjectName("error_message_label")
+        error_label.setStyleSheet(f"""
+                color: #FF5252;
+                background-color: rgba(255, 82, 82, 0.1);
+                border: 1px solid #FF5252;
+                border-radius: 4px;
+                padding: 10px;
+                font-size: 14px;
+                margin: 10px 0px;
+        """)
+        error_label.setWordWrap(True)
+        error_label.setAlignment(Qt.AlignCenter)
+        error_label.setVisible(False)  # Initially hidden
 
         # Subtitle
         subtitle = QLabel("Log in to continue")
@@ -464,6 +502,66 @@ class LoginPage(QWidget):
 
         return signup_widget
 
+
+
+
+
+class LoginInputEventFilter(QObject):
+    """Event filter to handle input field focus events"""
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.fields_with_errors = set()
+    
+    def eventFilter(self, obj, event):
+        # Check if this is a focus in event on an input field with error
+        if event.type() == QEvent.FocusIn and obj in self.fields_with_errors:
+            # Reset the field style
+            if hasattr(obj, 'original_style'):
+                obj.setStyleSheet(obj.original_style)
+                obj.setToolTip("")
+                self.fields_with_errors.remove(obj)
+                
+        # Always return False to allow the event to be processed by Qt
+        return False
+    
+    def add_field_with_error(self, field):
+        """Add a field to the set of fields with errors"""
+        self.fields_with_errors.add(field)
+
+    def _modify_input_event_filter(self):
+        """Update the input event filter to handle checkbox events"""
+        original_event_filter = self.input_event_filter.eventFilter
+        
+        def new_event_filter(obj, event):
+            # Handle text input fields as before
+            if event.type() == QEvent.FocusIn and obj in self.input_event_filter.fields_with_errors:
+                if hasattr(obj, 'original_style'):
+                    obj.setStyleSheet(obj.original_style)
+                    obj.setToolTip("")
+                    self.input_event_filter.fields_with_errors.remove(obj)
+            
+            # Also handle checkbox state changes
+            elif isinstance(obj, QCheckBox) and event.type() == QEvent.MouseButtonRelease:
+                if obj in self.input_event_filter.fields_with_errors:
+                    # Use QTimer to reset after click is processed
+                    from PySide6.QtCore import QTimer
+                    QTimer.singleShot(10, lambda: self._reset_checkbox_style(obj))
+            
+            # Always return False to allow normal event processing
+            return False
+        
+        # Replace the event filter method
+        self.input_event_filter.eventFilter = new_event_filter
+
+    def _reset_checkbox_style(self, checkbox):
+        """Reset checkbox style after state change"""
+        if hasattr(checkbox, 'original_style'):
+            checkbox.setStyleSheet(checkbox.original_style)
+            checkbox.setToolTip("")
+            self.input_event_filter.fields_with_errors.remove(checkbox)
+
+
 class ForgotPasswordPage(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -532,10 +630,11 @@ class ForgotPasswordPage(QWidget):
         layout.addWidget(back_to_login)
         layout.addStretch(1)
 
+
 class LoginWindow(QWidget):
     def __init__(self):
         super().__init__()
-
+        
         # Window setup
         self.setWindowTitle("StockMaster - Login")
         self.setMinimumSize(1000, 600)
@@ -562,13 +661,181 @@ class LoginWindow(QWidget):
         login_page = LoginPage()
         forgot_password_page = ForgotPasswordPage()
 
+        self.input_event_filter = LoginInputEventFilter(self)
+
         # Add pages to stacked widget
         self.stacked_widget.addWidget(login_page)
         self.stacked_widget.addWidget(forgot_password_page)
 
         # Add stacked widget to main layout
         main_layout.addWidget(self.stacked_widget)
-        connect_authentication_signals(login_page)  # Add this line
+
+    def show_error_message(self, title, message):
+        """Enhanced error message dialog"""
+        # Create a custom styled message box
+        error_box = QMessageBox(self)
+        error_box.setWindowTitle(title)
+        error_box.setText(message)
+        error_box.setIcon(QMessageBox.Warning)
+        
+        # Style the message box
+        error_box.setStyleSheet(f"""
+            QMessageBox {{
+                background-color: {ColorPalette.BG_DARK};
+                color: {ColorPalette.TEXT_PRIMARY};
+            }}
+            QLabel {{
+                color: {ColorPalette.TEXT_PRIMARY};
+                font-size: 14px;
+                min-width: 300px;
+            }}
+            QPushButton {{
+                background-color: {ColorPalette.ACCENT_PRIMARY};
+                color: white;
+                border: none;
+                border-radius: 8px;
+                padding: 8px 16px;
+                font-weight: bold;
+            }}
+            QPushButton:hover {{
+                background-color: #5254c7;
+            }}
+        """)
+        
+        error_box.exec_()
+
+    def show_input_error(self, error_type, message):
+        # Show error message
+        self.show_error_message("Login Error", message)
+        
+        # Get login page
+        login_page = self.stacked_widget.widget(0)
+        
+        # Reset previous styles
+        self._reset_all_input_styles(login_page)
+        
+        # Apply new error styles
+        if error_type == "email" or error_type == "both":
+            input_field = login_page.findChild(QLineEdit, "email_input")
+            self._highlight_input_field(input_field, message)
+            
+        if error_type == "password" or error_type == "both":
+            input_field = login_page.findChild(QLineEdit, "password_input")
+            self._highlight_input_field(input_field, message)
+
+    def _highlight_input_field(self, input_field, message):
+        if not input_field:
+            return
+            
+        # Store original style
+        if not hasattr(input_field, 'original_style'):
+            input_field.original_style = input_field.styleSheet()
+        
+        # Apply error styling
+        input_field.setStyleSheet(f"""
+            border: 2px solid #FF5252;
+            background-color: rgba(255, 82, 82, 0.1);
+            border-radius: 8px;
+            padding: 10px;
+        """)
+        
+        # Set tooltip
+        input_field.setToolTip(message)
+        
+        # Install event filter
+        input_field.installEventFilter(self.input_event_filter)
+        self.input_event_filter.add_field_with_error(input_field)
+
+    def _reset_input_style(self, page, field_id):
+        """Reset an input field's style"""
+        input_field = page.findChild(QLineEdit, field_id)
+        if not input_field:
+            return
+            
+        if hasattr(input_field, 'original_style'):
+            input_field.setStyleSheet(input_field.original_style)
+        
+        input_field.setToolTip("")
+
+    def _reset_all_input_styles(self, page):
+        """Reset all input fields to original styles"""
+        self._reset_input_style(page, "email_input")
+        self._reset_input_style(page, "password_input")
+
+    def navigate_to_home(self, email):
+        """Navigate to the home screen with the user's email"""
+        from View.home_page import MainWindow
+        
+        # Create and show the home window
+        self.home_window = MainWindow(user_email=email)
+        self.home_window.show()
+        
+        # Close the login window
+        self.close()
+
+    def show_signup_input_error(self, error_type, message):
+        """
+        Show error on signup input fields.
+        Similar to show_input_error but for signup fields.
+        """
+        # Show error message
+        self.show_error_message("Signup Error", message)
+        
+        # Get login page (which contains the signup form in the stacked widget)
+        login_page = self.stacked_widget.widget(0)
+        
+        # Reset previous styles
+        self._reset_all_signup_input_styles(login_page)
+        
+        # Apply new error styles based on error type
+        if error_type == "name" or error_type == "all":
+            input_field = login_page.findChild(QLineEdit, "signup_name_input")
+            self._highlight_input_field(input_field, message)
+            
+        if error_type == "email" or error_type == "all" or error_type == "both":
+            input_field = login_page.findChild(QLineEdit, "signup_email_input")
+            self._highlight_input_field(input_field, message)
+            
+        if error_type == "password" or error_type == "all" or error_type == "both":
+            input_field = login_page.findChild(QLineEdit, "signup_password_input")
+            self._highlight_input_field(input_field, message)
+            
+        if error_type == "confirm_password" or error_type == "all":
+            input_field = login_page.findChild(QLineEdit, "signup_confirm_password_input")
+            self._highlight_input_field(input_field, message)
+            
+        if error_type == "terms_accepted" or error_type == "all":
+            terms_field = login_page.findChild(QCheckBox, "terms_check")
+            if terms_field:
+                if not hasattr(terms_field, 'original_style'):
+                    terms_field.original_style = terms_field.styleSheet()
+                
+                terms_field.setStyleSheet("""
+                    QCheckBox {
+                        color: #FF5252;
+                    }
+                    QCheckBox::indicator {
+                        border: 2px solid #FF5252;
+                        background-color: rgba(255, 82, 82, 0.1);
+                    }
+                """)
+                terms_field.setToolTip(message)
+                terms_field.installEventFilter(self.input_event_filter)
+                self.input_event_filter.add_field_with_error(terms_field)
+
+    def _reset_all_signup_input_styles(self, page):
+        """Reset all signup input fields to original styles"""
+        self._reset_input_style(page, "signup_name_input")
+        self._reset_input_style(page, "signup_email_input")
+        self._reset_input_style(page, "signup_password_input")
+        self._reset_input_style(page, "signup_confirm_password_input")
+        
+        # Also reset terms checkbox
+        terms_check = page.findChild(QCheckBox, "terms_check")
+        if terms_check and hasattr(terms_check, 'original_style'):
+            terms_check.setStyleSheet(terms_check.original_style)
+            terms_check.setToolTip("")
+
 
 class MainWindow(QWidget):
     def __init__(self, user_email=None):
@@ -601,59 +868,19 @@ class MainWindow(QWidget):
         """)
         layout.addWidget(welcome_label)
 
-def connect_authentication_signals(login_page):
-    # Login button
-    login_btn = login_page.findChild(QPushButton, "login_btn")
-    email_input = login_page.findChild(QLineEdit, "email_input")
-    password_input = login_page.findChild(QLineEdit, "password_input")
+    # Add this method to LoginWindow class
+    def navigate_to_home(self, email):
+        """Navigate to the home screen with the user's email"""
+        from View.home_page import MainWindow
+        
+        # Create and show the home window
+        self.home_window = MainWindow(user_email=email)
+        self.home_window.show()
+        
+        # Close the login window
+        self.close()
 
-    def handle_login():
-        email = email_input.text()
-        password = password_input.text()
 
-        if AuthenticationManager.validate_login(email, password):
-            # Import the home page here to avoid circular imports
-            from View.home_page import MainWindow
-
-            # Create the home window
-            home_window = MainWindow(user_email=email)
-
-            print("MainWindow created")
-
-            # Ensure the window has a reference to prevent garbage collection
-            login_page.home_window = home_window
-
-            # Show the window
-            home_window.show()
-
-            print("MainWindow shown")
-
-            # Close the login window
-            login_page.window().close()
-
-            # Keep the application running
-            # Get the QApplication instance
-            app = QApplication.instance()
-            if app:
-                # Process events to keep the window open
-                app.exec()
-        else:
-            # Show error message
-            QMessageBox.warning(login_page, "Login Error", "Invalid login credentials")
-
-    login_btn.clicked.connect(handle_login)
-
-# In View/auth_page.py
-def navigate_to_home(self, email):
-    """Navigate to the home screen with the user's email"""
-    from View.home_page import MainWindow
-    
-    # Create and show the home window
-    self.home_window = MainWindow(user_email=email)
-    self.home_window.show()
-    
-    # Close the login window
-    self.window().close()
 
     
 if __name__ == "__main__":

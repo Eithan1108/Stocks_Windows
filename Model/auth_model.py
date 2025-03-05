@@ -1,4 +1,6 @@
 # Models/auth_model.py
+import requests
+
 class AuthModel:
     def __init__(self):
         # For MVP, we'll use a simple in-memory database
@@ -14,55 +16,86 @@ class AuthModel:
         }
     
     def validate_login(self, email, password):
-        """Validate login credentials"""
-        # Check if email and password are not empty
-        if not email or not password:
-            return False, "Email and password cannot be empty"
+        print("Validating login___________")
+        print("Auth details: ", email, password)
+        if not email or '@' not in email:
+            return False, "email", "Invalid email address"
+        try:
+            response = requests.post(
+                "http://localhost:5000/api/user/login",
+                json={
+                    "email": email,
+                    "password": password
+                }
+            )
 
-        # Check for valid email format
-        if '@' not in email or '.' not in email:
-            return False, "Invalid email format"
-
-        # Check minimum password length
-        if len(password) < 8:
-            return False, "Password must be at least 8 characters"
-
-        # Check if user exists and password matches
-        if email in self.users and self.users[email]["password"] == password:
-            return True, "Login successful"
-        
-        return False, "Invalid email or password"
+            # Check API response (add proper status code handling)
+            if response.status_code == 200:
+                return True, "Login successful", ""
+            else:
+                print("Invalid credentials")
+                return False, "both", "Wrong email or password"
+                
+        except Exception as e:
+            print(f"API request error: {e}")
+            
+            # Fall back to in-memory check if API fails
+            if email in self.users and self.users[email]["password"] == password:
+                return True, "Login successful", ""
+            
+            return False, "Invalid email or password", ""
     
     def validate_signup(self, name, email, password, confirm_password, terms_accepted):
         """Validate signup information"""
-        # This is already well-implemented in your code - just move it here
-        # Basic validation checks
+        print("Validating signup___________")
+        print("Signup details: ", name, email, password, confirm_password, terms_accepted)
         if not name:
-            return False, "Name cannot be empty"
-
+            return False, "name", "Name is required"
         if not email or '@' not in email:
-            return False, "Invalid email address"
-
-        if len(password) < 8:
-            return False, "Password must be at least 8 characters"
-
+            return False, "email", "Invalid email address"
+        if not password:
+            return False, "password", "Password is required"
+        if len(password) < 6:
+            return False, "password", "Password must be at least 6 characters"
         if password != confirm_password:
-            return False, "Passwords do not match"
-
+            return False, "confirm_password", "Passwords do not match"
         if not terms_accepted:
-            return False, "You must accept the terms and conditions"
+            return False, "terms_accepted", "You must accept the terms"
         
-        # Check if user already exists
-        if email in self.users:
-            return False, "User with this email already exists"
+        print("Singup details: ", name, email, password)
         
-        # Add user to database
-        self.users[email] = {
-            "password": password,
-            "name": name
-        }
-        
-        return True, "Signup successful"
+        try:
+            response = requests.post(
+                "http://localhost:5000/api/user/register",
+                json={
+                    "username": name,
+                    "email": email,
+                    "password": password,
+                    "profilePicture": ""
+                }
+            )
+
+            print("Response status:", response.status_code)
+            print("Response content:", response.text)
+
+            if response.status_code == 200:
+                return True, "Signup successful", ""
+            else:
+                return False, "both", "User already exists"
+            
+        except Exception as e:
+            print(f"API request error: {e}")
+            
+            # Fall back to in-memory check if API fails
+            if email in self.users:
+                return False, "all", "User already exists"
+            
+            # Add new user to in-memory database
+            self.users[email] = {
+                "password": password,
+                "name": name
+            }
+            return True, "Signup successful", ""
     
     def reset_password(self, email):
         """Handle password reset logic"""
