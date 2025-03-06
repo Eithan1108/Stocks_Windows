@@ -14,6 +14,8 @@ class AuthModel:
                 "name": "Demo User"
             }
         }
+
+        self.api_base_url = "http://localhost:5000/api/user"
     
     def validate_login(self, email, password):
         print("Validating login___________")
@@ -97,6 +99,30 @@ class AuthModel:
             }
             return True, "Signup successful", ""
     
+    def login_with_google(self, id_token):
+        """Authenticate with Google token"""
+        try:
+            print(f"Sending Google token to backend: {id_token[:20]}...")
+            
+            response = requests.post(
+                f"{self.api_base_url}/login-google",
+                json={"idToken": id_token}
+            )
+            
+            print("Google login response:", response.status_code)
+            print("Response content:", response.text)
+            
+            if response.status_code == 200:
+                user_data = response.json()
+                return True, "Google login successful", user_data
+            else:
+                error_message = response.text
+                return False, "Google authentication failed", error_message
+                    
+        except Exception as e:
+            print(f"API request error during Google login: {e}")
+            return False, "Google authentication failed", str(e)
+
     def reset_password(self, email):
         """Handle password reset logic"""
         # This is already well-implemented in your code - just move it here

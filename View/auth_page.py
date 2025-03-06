@@ -1,19 +1,28 @@
 import sys
 import os
-from PySide6.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
+from PySide6.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QProgressBar,
                                QLineEdit, QPushButton, QStackedWidget, QFrame,
                                QCheckBox, QMessageBox)
-from PySide6.QtGui import (QColor, QFont, QPainter, QPixmap, QPen, QLinearGradient,
+from PySide6.QtGui import (QColor, QFont, QPainter, QPixmap, QPen, QLinearGradient, QMovie,
                            QBrush, QIcon)
-from PySide6.QtCore import Qt, QSize, QRect, Signal
+from PySide6.QtCore import Qt, QSize, QRect, Signal, QTimer
 # In auth_page.py
 from View.shared_components import ColorPalette, GlobalStyle, AvatarWidget
 from PySide6.QtCore import QObject, QEvent
+from PySide6.QtGui import QImage, QPainter, QColor, QPen, QBrush
+from PySide6.QtCore import Qt, QRect
+from PySide6.QtWidgets import QWidget, QLabel, QVBoxLayout
+from PySide6.QtCore import Qt, QTimer, Signal, QSize, QPropertyAnimation, QEasingCurve, Property
+from PySide6.QtGui import QColor, QPainter, QPen, QBrush
+from View.loading_overlay import LoadingOverlay
+
+
 
 class SocialLoginButton(QPushButton):
     """Custom social login button with icon and styling"""
-    def __init__(self, icon_path, text, color):
+    def __init__(self, icon_path, text, color, provider=None):
         super().__init__(text)
+        self.provider = provider
 
         # Button styling
         self.setStyleSheet(f"""
@@ -42,6 +51,7 @@ class SocialLoginButton(QPushButton):
 
         # Ensure icon is on the left
         self.setLayoutDirection(Qt.LeftToRight)
+
 
 class AuthenticationManager:
     @staticmethod
@@ -128,7 +138,13 @@ class LoginPage(QWidget):
     
     def get_signup_button(self):
         return self.findChild(QPushButton, "signup_btn")
-        
+    
+    def get_google_login_button(self):
+        return self.findChild(QPushButton, "google_login_btn")
+    
+    def get_google_signup_button(self):
+        return self.findChild(QPushButton, "google_signup_btn")
+
     def get_login_credentials(self):
         email = self.findChild(QLineEdit, "email_input").text()
         password = self.findChild(QLineEdit, "password_input").text()
@@ -337,6 +353,7 @@ class LoginPage(QWidget):
             "Continue with Google",
             "#4285F4"
         )
+        google_btn.setObjectName("google_login_btn")
 
         # Apple login
         apple_btn = SocialLoginButton(
@@ -344,6 +361,7 @@ class LoginPage(QWidget):
             "Continue with Apple",
             "#000000"
         )
+        apple_btn.setObjectName("apple_login_btn")
 
         social_login_layout.addWidget(google_btn)
         social_login_layout.addWidget(apple_btn)
@@ -452,6 +470,7 @@ class LoginPage(QWidget):
             "Continue with Google",
             "#4285F4"
         )
+        google_btn.setObjectName("google_signup_btn")
 
         # Apple signup
         apple_btn = SocialLoginButton(
@@ -459,6 +478,7 @@ class LoginPage(QWidget):
             "Continue with Apple",
             "#000000"
         )
+        apple_btn.setObjectName("apple_login_btn")
 
         social_signup_layout.addWidget(google_btn)
         social_signup_layout.addWidget(apple_btn)
@@ -669,6 +689,26 @@ class LoginWindow(QWidget):
 
         # Add stacked widget to main layout
         main_layout.addWidget(self.stacked_widget)
+        
+        # Initialize loading overlay
+        self.loading_overlay = None
+    
+
+    def init_loading_overlay(self):
+        """Initialize the loading overlay"""
+        # Import from the loading_overlay.py
+        
+        # Create loading overlay
+        self.loading_overlay = LoadingOverlay(self)
+        
+        # Connect the finished signal to handle post-loading actions if needed
+        self.loading_overlay.finished.connect(self.on_loading_finished)
+    
+
+    def on_loading_finished(self):
+        """Handle actions after loading is complete"""
+        # This method can be used to perform actions after loading completes
+        pass
 
     def show_error_message(self, title, message):
         """Enhanced error message dialog"""
@@ -703,6 +743,39 @@ class LoginWindow(QWidget):
         """)
         
         error_box.exec_()
+
+    def show_success_message(self, title, message):
+        """Show a success message dialog"""
+        success_box = QMessageBox(self)
+        success_box.setWindowTitle(title)
+        success_box.setText(message)
+        success_box.setIcon(QMessageBox.Information)
+        
+        # Style the message box
+        success_box.setStyleSheet(f"""
+            QMessageBox {{
+                background-color: {ColorPalette.BG_DARK};
+                color: {ColorPalette.TEXT_PRIMARY};
+            }}
+            QLabel {{
+                color: {ColorPalette.TEXT_PRIMARY};
+                font-size: 14px;
+                min-width: 300px;
+            }}
+            QPushButton {{
+                background-color: {ColorPalette.ACCENT_PRIMARY};
+                color: white;
+                border: none;
+                border-radius: 8px;
+                padding: 8px 16px;
+                font-weight: bold;
+            }}
+            QPushButton:hover {{
+                background-color: #5254c7;
+            }}
+        """)
+        
+        success_box.exec_()
 
     def show_input_error(self, error_type, message):
         # Show error message
@@ -766,12 +839,27 @@ class LoginWindow(QWidget):
         """Navigate to the home screen with the user's email"""
         from View.home_page import MainWindow
         
-        # Create and show the home window
+        # Create the home window (don't show yet)
         self.home_window = MainWindow(user_email=email)
-        self.home_window.show()
         
-        # Close the login window
-        self.close()
+        # If loading overlay is active, update message
+        if self.loading_overlay and self.loading_overlay.isVisible():
+            self.loading_overlay.message_label.setText("Opening dashboard...")
+            
+            # Use a timer to show the home window after a brief delay
+            QTimer.singleShot(800, self._complete_navigation)
+        else:
+            # If no loading overlay, just show the home window
+            self._complete_navigation()
+    
+    def _complete_navigation(self):
+        """Complete the navigation to the home screen"""
+        if hasattr(self, 'home_window'):
+            # Show the home window
+            self.home_window.show()
+            
+            # Close the login window
+            self.close()
 
     def show_signup_input_error(self, error_type, message):
         """
@@ -835,7 +923,12 @@ class LoginWindow(QWidget):
         if terms_check and hasattr(terms_check, 'original_style'):
             terms_check.setStyleSheet(terms_check.original_style)
             terms_check.setToolTip("")
-
+            
+    # Override resize event to make sure loading overlay always covers the window
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if hasattr(self, 'loading_overlay') and self.loading_overlay:
+            self.loading_overlay.resize(self.size())
 
 class MainWindow(QWidget):
     def __init__(self, user_email=None):
@@ -881,10 +974,135 @@ class MainWindow(QWidget):
         self.close()
 
 
+class SpinnerWidget(QWidget):
+    """Custom spinner widget that doesn't require external GIF files"""
+    
+    def __init__(self, parent=None, size=40, color=None):
+        super().__init__(parent)
+        
+        self.setFixedSize(size, size)
+        self.angle = 0
+        self.color = color or QColor(ColorPalette.ACCENT_PRIMARY)
+        
+        # Create spin animation
+        self.spin_animation = QPropertyAnimation(self, b"rotation_angle")
+        self.spin_animation.setDuration(1000)  # 1 second per rotation
+        self.spin_animation.setStartValue(0)
+        self.spin_animation.setEndValue(360)
+        self.spin_animation.setLoopCount(-1)  # Loop indefinitely
+        self.spin_animation.setEasingCurve(QEasingCurve.Linear)
+    
+    def get_rotation_angle(self):
+        return self.angle
+    
+    def set_rotation_angle(self, angle):
+        self.angle = angle
+        self.update()  # Trigger a repaint
+    
+    # Create a Qt property for the animation
+    rotation_angle = Property(float, get_rotation_angle, set_rotation_angle)
+    
+    def start(self):
+        """Start spinner animation"""
+        self.spin_animation.start()
+    
+    def stop(self):
+        """Stop spinner animation"""
+        self.spin_animation.stop()
+    
+    def paintEvent(self, event):
+        """Override paint event to draw spinner"""
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        
+        # Save painter state
+        painter.save()
+        
+        # Calculate center and radius
+        width = self.width()
+        height = self.height()
+        center_x = width // 2
+        center_y = height // 2
+        radius = min(width, height) // 2 - 3
+        
+        # Set up pen for the arc
+        painter.setPen(QPen(Qt.transparent))
+        
+        # Draw background circle (lighter)
+        painter.setBrush(QBrush(QColor(100, 100, 100, 40)))
+        painter.drawEllipse(center_x - radius, center_y - radius, radius * 2, radius * 2)
+        
+        # Rotate painter for spinner effect
+        painter.translate(center_x, center_y)
+        painter.rotate(self.angle)
+        painter.translate(-center_x, -center_y)
+        
+        # Draw spinner arc
+        pen = QPen(self.color, 3, Qt.SolidLine, Qt.RoundCap)
+        painter.setPen(pen)
+        
+        # Only draw a portion of the circle
+        painter.drawArc(center_x - radius, center_y - radius, radius * 2, radius * 2, 0, 270 * 16)
+        
+        # Restore painter state
+        painter.restore()
+
+class AnimatedLoadingOverlay(LoadingOverlay):
+    def __init__(self, parent=None, message="Please wait...", gif_path="Icons/spinner.gif"):
+        # Initialize without the progress bar
+        super().__init__(parent, message)
+        
+        # Remove the progress bar from layout
+        self.layout().removeWidget(self.progress)
+        self.progress.deleteLater()
+        
+        # Create animated spinner using QMovie
+        self.spinner_label = QLabel()
+        self.spinner_movie = QMovie(gif_path)
+        
+        # If GIF file doesn't exist, create a fallback spinner
+        try:
+            if not self.spinner_movie.isValid():
+                raise FileNotFoundError("GIF file not found or invalid")
+            
+            self.spinner_movie.setScaledSize(QSize(64, 64))
+            self.spinner_label.setMovie(self.spinner_movie)
+            self.spinner_movie.start()
+        except Exception as e:
+            print(f"Error loading spinner GIF: {e}")
+            # Create a fallback spinner (colored circle)
+            spinner_pixmap = QPixmap(64, 64)
+            spinner_pixmap.fill(Qt.transparent)
+            
+            painter = QPainter(spinner_pixmap)
+            painter.setRenderHint(QPainter.Antialiasing)
+            painter.setBrush(QBrush(QColor(ColorPalette.ACCENT_PRIMARY)))
+            painter.setPen(Qt.NoPen)
+            painter.drawEllipse(12, 12, 40, 40)
+            painter.end()
+            
+            self.spinner_label.setPixmap(spinner_pixmap)
+        
+        # Add the spinner to the layout before the message
+        self.layout().insertWidget(0, self.spinner_label, 0, Qt.AlignCenter)
+    
+    def start(self, message=None):
+        """Start showing the animated loading overlay"""
+        if hasattr(self, 'spinner_movie') and self.spinner_movie.isValid():
+            self.spinner_movie.start()
+        super().start(message)
+    
+    def stop(self):
+        """Stop showing the animated loading overlay"""
+        if hasattr(self, 'spinner_movie') and self.spinner_movie.isValid():
+            self.spinner_movie.stop()
+        super().stop()
+
 
     
 if __name__ == "__main__":
     app = QApplication(sys.argv)
+
 
     # Set application-wide style
     app.setStyleSheet(f"""
