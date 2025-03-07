@@ -16,6 +16,8 @@ from PySide6.QtSvg import QSvgRenderer
 from View.ai_advisor_window import AIAdvisorWindow
 from View.shared_components import ColorPalette, GlobalStyle, AvatarWidget
 from View.protofilio_view import PortfolioPage
+from View.transaction_view import TransactionsPage
+from View.profile_page import ProfilePage
 
 # Modern color palette
 # Modern color palette with improved contrast and subtle variations
@@ -986,7 +988,6 @@ class Sidebar(QFrame):
         self.dashboard_btn = SidebarButton("Icons/icons8-dashboard-50.png", "Dashboard", is_active=True)
         self.portfolio_btn = SidebarButton("Icons/icons8-portofolio-file-50.png", "Portfolio")
         self.transactions_btn = SidebarButton("Icons/icons8-transactions-50.png", "Transactions")
-        self.all = SidebarButton("Icons/icons8-search-50.png", "All Stocks")
         self.ai_chat = SidebarButton("Icons/icons8-ai-50 (1).png", "AI Advisor")
         self.settings_btn = SidebarButton("Icons/icons8-settings-50.png", "Settings")
 
@@ -994,7 +995,6 @@ class Sidebar(QFrame):
         layout.addWidget(self.dashboard_btn)
         layout.addWidget(self.portfolio_btn)
         layout.addWidget(self.transactions_btn)
-        layout.addWidget(self.all)
         layout.addWidget(self.ai_chat)
         layout.addSpacing(20)
 
@@ -1020,10 +1020,10 @@ class Sidebar(QFrame):
         user_layout.setSpacing(2)
 
         user_name = QLabel("John Doe")
-        user_name.setStyleSheet(f"color: {ColorPalette.TEXT_PRIMARY}; font-weight: bold;")
+        user_name.setStyleSheet(f"color: {ColorPalette.TEXT_PRIMARY}; font-weight: bold; background: transparent;")
 
         user_email = QLabel("john.doe@example.com")
-        user_email.setStyleSheet(f"color: {ColorPalette.TEXT_SECONDARY}; font-size: 11px;")
+        user_email.setStyleSheet(f"color: {ColorPalette.TEXT_SECONDARY}; font-size: 11px; background: transparent;")
 
         user_layout.addWidget(user_name)
         user_layout.addWidget(user_email)
@@ -1032,7 +1032,31 @@ class Sidebar(QFrame):
         profile_layout.addLayout(user_layout)
         profile_layout.addStretch()
 
-        layout.addLayout(profile_layout)
+        profile_btn = QPushButton()
+        profile_btn.setCursor(Qt.PointingHandCursor)
+        profile_btn.setStyleSheet("""
+            QPushButton {
+                background-color: transparent;
+                border: none;
+                text-align: left;
+                padding: 15px;
+                border-radius: 8px;
+            }
+            QPushButton:hover {
+                background-color: rgba(255, 255, 255, 0.1);
+            }
+        """)
+        btn_layout = QVBoxLayout(profile_btn)
+        btn_layout.setContentsMargins(10, 8, 10, 8)
+        btn_layout.addLayout(profile_layout)
+        # Aling to the left and center
+        btn_layout.setAlignment(profile_layout, Qt.AlignLeft | Qt.AlignVCenter)
+
+        # Store a reference to the button
+        self.profile_btn = profile_btn
+
+        # Then add the button to layout instead of the profile_layout
+        layout.addWidget(profile_btn)
 
 # Improved search bar
 class SearchBar(QLineEdit):
@@ -1810,6 +1834,8 @@ class MainWindow(QWidget):
         # AI Advisor button - opens a separate window
         self.sidebar.ai_chat.clicked.connect(self._open_ai_advisor)
         self.sidebar.portfolio_btn.clicked.connect(self._open_portfolio)
+        self.sidebar.transactions_btn.clicked.connect(self._open_transactions)
+        self.sidebar.profile_btn.clicked.connect(self._open_profile)
 
         # Connect other buttons as needed if you want
 
@@ -1823,6 +1849,16 @@ class MainWindow(QWidget):
         # Store a reference to prevent garbage collection
         self.portfolio_window = PortfolioPage()
         self.portfolio_window.show()
+    def _open_transactions(self):
+        """Open the Transactions window"""
+        # Store a reference to prevent garbage collection
+        self.transactions_window = TransactionsPage()
+        self.transactions_window.show()
+    def _open_profile(self):
+        """Open the Profile window"""
+        # Store a reference to prevent garbage collection
+        self.profile_window = ProfilePage()
+        self.profile_window.show()
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

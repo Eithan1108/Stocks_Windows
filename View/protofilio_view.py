@@ -5,30 +5,35 @@ from datetime import datetime
 from PySide6.QtWidgets import (QApplication, QWidget, QVBoxLayout, QPushButton, QFrame, QHBoxLayout,
                                QLabel, QGridLayout, QScrollArea, QSizePolicy, QGraphicsDropShadowEffect,
                                QTableWidget, QTableWidgetItem, QHeaderView, QLineEdit, QComboBox, 
-                               QTabWidget, QStackedWidget, QBoxLayout)
+                               QTabWidget, QStackedWidget, QBoxLayout, QProgressBar, QToolButton,
+                               QSpacerItem)
 from PySide6.QtGui import (QColor, QFont, QPainter, QLinearGradient, QBrush, QPen,
-                           QFontMetrics, QIcon)
-from PySide6.QtCore import (Qt, QSize, QRect, QTimer, QEvent)
+                           QFontMetrics, QIcon, QPixmap, QCursor, QRadialGradient, QPainterPath)
+from PySide6.QtCore import (Qt, QSize, QRect, QTimer, QEvent, QPoint, QPointF, 
+                            QPropertyAnimation, Signal)
 
 # Import shared components from previous files
 from View.shared_components import ColorPalette, GlobalStyle, AvatarWidget
 from View.ai_advisor_window import AIAdvisorWindow
 
 class PortfolioPage(QWidget):
+    """Portfolio page that exactly matches the main window styling"""
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-
+        
+        # Set the same background color as main window
+        self.setStyleSheet(f"background-color: {ColorPalette.BG_DARK};")
+        
         # Main layout
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(20)
-
+        
         # Header with portfolio overview
-        header = self._create_portfolio_header()
+        header = self._create_header()
         layout.addWidget(header)
-
-
+        
         # Scrollable content area
         self.scroll_area = QScrollArea()
         self.scroll_area.setWidgetResizable(True)
@@ -43,232 +48,668 @@ class PortfolioPage(QWidget):
                 background: transparent;
             }
         """)
-
+        
         # Content widget
         self.content_widget = QWidget()
+        self.content_widget.setStyleSheet("background: transparent;")
         self.content_layout = QVBoxLayout(self.content_widget)
-        self.content_layout.setContentsMargins(0, 0, 0, 0)
+        self.content_layout.setContentsMargins(20, 0, 20, 20)
         self.content_layout.setSpacing(20)
-
+        
         # Create portfolio sections
+        self._setup_portfolio_summary_section()
         self._setup_portfolio_analysis_section()
-        self._setup_portfolio_composition_section()
-        self._setup_performance_tracking_section()
-
+        self._setup_portfolio_holdings_section()
+        
         # Set the scroll area widget
         self.scroll_area.setWidget(self.content_widget)
         layout.addWidget(self.scroll_area)
-
+        
         # Install event filter for responsive design
         self.installEventFilter(self)
-
-    def _create_portfolio_header(self):
+    
+    def _create_header(self):
         """Create a header with portfolio summary and key actions"""
         header = QFrame()
         header.setMinimumHeight(80)
         header.setStyleSheet("background-color: transparent;")
-
+        
         header_layout = QHBoxLayout(header)
-        header_layout.setContentsMargins(0, 0, 0, 0)
+        header_layout.setContentsMargins(20, 15, 20, 15)
         header_layout.setSpacing(20)
-
-        # Portfolio title and summary
+        
+        # Portfolio title and summary - exact match to Header class in main window
         title_layout = QVBoxLayout()
         title_layout.setSpacing(4)
-
+        
         title = QLabel("Your Portfolio")
         title.setStyleSheet(GlobalStyle.HEADER_STYLE)
-
+        
         portfolio_summary = QLabel("Comprehensive Investment Overview")
         portfolio_summary.setStyleSheet(f"color: {ColorPalette.TEXT_SECONDARY}; font-size: 14px;")
-
+        
         title_layout.addWidget(title)
         title_layout.addWidget(portfolio_summary)
-
-        # Portfolio value and key metrics
+        
+        # Portfolio value and key metrics - styled the same as main window
         metrics_layout = QHBoxLayout()
+        metrics_layout.setSpacing(20)
+        
         metrics = [
             {"label": "Total Value", "value": "$1,234,567"},
             {"label": "Daily Change", "value": "+$4,567 (3.7%)"},
             {"label": "YTD Return", "value": "+18.5%"}
         ]
-
+        
         for metric in metrics:
             metric_widget = QWidget()
             metric_layout = QVBoxLayout(metric_widget)
             metric_layout.setContentsMargins(0, 0, 0, 0)
             metric_layout.setSpacing(4)
-
+            
             label = QLabel(metric["label"])
             label.setStyleSheet(f"color: {ColorPalette.TEXT_SECONDARY}; font-size: 12px;")
-
+            
             value = QLabel(metric["value"])
             value.setStyleSheet(f"""
                 color: {ColorPalette.TEXT_PRIMARY}; 
                 font-size: 16px; 
                 font-weight: bold;
             """)
-
+            
             metric_layout.addWidget(label)
             metric_layout.addWidget(value)
-
+            
             metrics_layout.addWidget(metric_widget)
-
-        # Action buttons
+        
+        # Action buttons - same style as main window
         action_layout = QHBoxLayout()
-        action_buttons = [
-            {"text": "Add Funds", "style": GlobalStyle.PRIMARY_BUTTON},
-            {"text": "Withdraw", "style": GlobalStyle.SECONDARY_BUTTON}
-        ]
-
-        for btn_info in action_buttons:
-            btn = QPushButton(btn_info["text"])
-            btn.setStyleSheet(btn_info["style"])
-            btn.setFixedHeight(40)
-            action_layout.addWidget(btn)
-
+        action_layout.setSpacing(10)
+        
+        add_btn = QPushButton("Add Funds")
+        add_btn.setStyleSheet(GlobalStyle.PRIMARY_BUTTON)
+        add_btn.setCursor(Qt.PointingHandCursor)
+        add_btn.setFixedHeight(40)
+        
+        withdraw_btn = QPushButton("Withdraw")
+        withdraw_btn.setStyleSheet(GlobalStyle.SECONDARY_BUTTON)
+        withdraw_btn.setCursor(Qt.PointingHandCursor)
+        withdraw_btn.setFixedHeight(40)
+        
+        action_layout.addWidget(add_btn)
+        action_layout.addWidget(withdraw_btn)
+        
         # Combine layouts
         header_layout.addLayout(title_layout)
         header_layout.addStretch(1)
         header_layout.addLayout(metrics_layout)
         header_layout.addLayout(action_layout)
-
+        
         return header
-
+    
+    def _setup_portfolio_summary_section(self):
+        """Portfolio summary with visual chart - exact same as PortfolioSummaryCard in main window"""
+        # Create a Card that matches PortfolioSummaryCard from main window
+        summary_card = QFrame()
+        summary_card.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        summary_card.setMinimumHeight(200)
+        summary_card.setMaximumHeight(250)
+        
+        # Get gradient colors for orange theme (same as in main window)
+        color_start = "#F59E0B"  # Orange start
+        color_end = "#D97706"    # Darker orange end
+        
+        # Update the style with gradient background - exact match
+        summary_card.setStyleSheet(f"""
+            background: qlineargradient(spread:pad, x1:0, y1:0, x2:1, y2:1, 
+                stop:0 {color_start}, stop:1 {color_end});
+            border-radius: 12px;
+            border: none;
+        """)
+        
+        # Shadow effect - exact match to main window
+        shadow = QGraphicsDropShadowEffect()
+        shadow.setBlurRadius(20)
+        shadow.setColor(QColor(0, 0, 0, 40))  # More subtle shadow
+        shadow.setOffset(0, 4)
+        summary_card.setGraphicsEffect(shadow)
+        
+        # Card layout
+        card_layout = QVBoxLayout(summary_card)
+        card_layout.setContentsMargins(20, 20, 20, 20)
+        card_layout.setSpacing(15)
+        
+        # Top section with value and change
+        top_section = QHBoxLayout()
+        top_section.setSpacing(15)
+        
+        # Value/Change section (left) - exact match to main window
+        value_section = QVBoxLayout()
+        value_section.setSpacing(5)
+        
+        # Title - same transparency and styling
+        title_label = QLabel("Portfolio Value")
+        title_label.setStyleSheet("""
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 16px;
+            font-weight: normal;
+            background: transparent;
+        """)
+        
+        # Balance value - large and prominent, exact match
+        balance_label = QLabel("$1,234,567.89")
+        balance_label.setStyleSheet("""
+            color: white;
+            font-size: 36px;
+            font-weight: bold;
+            background: transparent;
+        """)
+        
+        # Change percentage with background - same styling
+        change_label = QLabel("+4.5%")
+        change_label.setStyleSheet("""
+            color: white;
+            font-size: 16px;
+            font-weight: bold;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+            padding: 4px 10px;
+        """)
+        
+        value_section.addWidget(title_label)
+        value_section.addWidget(balance_label)
+        value_section.addWidget(change_label)
+        value_section.setAlignment(change_label, Qt.AlignLeft)
+        
+        # Time filter section (right) - matches main window
+        time_filter = QHBoxLayout()
+        time_periods = ["1D", "1W", "1M", "3M", "1Y", "ALL"]
+        
+        for period in time_periods:
+            period_btn = QPushButton(period)
+            period_btn.setFixedSize(50, 30)
+            period_btn.setCursor(Qt.PointingHandCursor)
+            
+            # Style the selected period differently - exact match
+            if period == "1M":
+                period_btn.setStyleSheet("""
+                    QPushButton {
+                        color: white;
+                        background-color: rgba(255, 255, 255, 0.3);
+                        border: none;
+                        border-radius: 6px;
+                        font-weight: bold;
+                    }
+                    QPushButton:hover {
+                        background-color: rgba(255, 255, 255, 0.4);
+                    }
+                """)
+            else:
+                period_btn.setStyleSheet("""
+                    QPushButton {
+                        color: rgba(255, 255, 255, 0.7);
+                        background-color: transparent;
+                        border: none;
+                        border-radius: 6px;
+                    }
+                    QPushButton:hover {
+                        background-color: rgba(255, 255, 255, 0.2);
+                    }
+                """)
+            
+            time_filter.addWidget(period_btn)
+        
+        # Additional metrics in clean boxes - same as main window
+        metrics_layout = QHBoxLayout()
+        metrics_layout.setSpacing(10)
+        
+        metrics = [
+            {"label": "Daily Change", "value": "+$12,345.67"},
+            {"label": "YTD Return", "value": "+18.7%"}
+        ]
+        
+        for metric in metrics:
+            metric_frame = QFrame()
+            metric_frame.setStyleSheet("""
+                background-color: rgba(255, 255, 255, 0.15);
+                border-radius: 8px;
+            """)
+            
+            metric_layout = QVBoxLayout(metric_frame)
+            metric_layout.setContentsMargins(15, 10, 15, 10)
+            metric_layout.setSpacing(4)
+            
+            label = QLabel(metric["label"])
+            label.setStyleSheet("""
+                color: rgba(255, 255, 255, 0.7);
+                font-size: 12px;
+            """)
+            
+            value = QLabel(metric["value"])
+            value.setStyleSheet("""
+                color: white;
+                font-size: 16px;
+                font-weight: bold;
+            """)
+            
+            metric_layout.addWidget(label)
+            metric_layout.addWidget(value)
+            
+            metrics_layout.addWidget(metric_frame)
+        
+        # Combine sections
+        top_right = QVBoxLayout()
+        top_right.addLayout(time_filter)
+        top_right.addStretch(1)
+        top_right.addLayout(metrics_layout)
+        
+        top_section.addLayout(value_section, 1)
+        top_section.addLayout(top_right, 1)
+        
+        # Add to card layout
+        card_layout.addLayout(top_section)
+        
+        # Graph view - same as main window's trend data
+        graph_label = QLabel()
+        graph_label.setMinimumHeight(80)
+        graph_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        graph_label.setStyleSheet("background: transparent;")
+        
+        # Create a simplified placeholder chart with same styling
+        pixmap = QPixmap(700, 100)
+        pixmap.fill(Qt.transparent)
+        
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.Antialiasing)
+        
+        # Draw a trend line - same as main window
+        painter.setPen(QPen(QColor(255, 255, 255, 230), 2))
+        
+        # Create a path with curved line going upward
+        path = QPainterPath()
+        path.moveTo(0, 80)
+        path.cubicTo(200, 70, 400, 50, 700, 20)
+        
+        painter.drawPath(path)
+        
+        # Draw area under curve - same gradient as main window
+        fillPath = QPainterPath(path)
+        fillPath.lineTo(700, 100)
+        fillPath.lineTo(0, 100)
+        fillPath.closeSubpath()
+        
+        gradient = QLinearGradient(0, 0, 0, 100)
+        gradient.setColorAt(0, QColor(255, 255, 255, 80))
+        gradient.setColorAt(1, QColor(255, 255, 255, 0))
+        painter.fillPath(fillPath, gradient)
+        
+        painter.end()
+        graph_label.setPixmap(pixmap)
+        
+        card_layout.addWidget(graph_label, 1)
+        
+        self.content_layout.addWidget(summary_card)
+    
     def _setup_portfolio_analysis_section(self):
         """Create a section for detailed portfolio analysis"""
         section = QFrame()
         section_layout = QHBoxLayout(section)
         section_layout.setContentsMargins(0, 0, 0, 0)
         section_layout.setSpacing(20)
-
+        
         # Asset Allocation Card
-        asset_allocation = QFrame()
-        asset_allocation.setStyleSheet(GlobalStyle.CARD_STYLE)
-        asset_layout = QVBoxLayout(asset_allocation)
-        asset_layout.setContentsMargins(20, 20, 20, 20)
-        asset_layout.setSpacing(15)
-
-        # Title
-        asset_title = QLabel("Asset Allocation")
-        asset_title.setStyleSheet(GlobalStyle.SUBHEADER_STYLE)
-        asset_layout.addWidget(asset_title)
-
-        # Allocation breakdown
-        allocation_breakdown = QWidget()
-        breakdown_layout = QGridLayout(allocation_breakdown)
-        breakdown_layout.setContentsMargins(0, 0, 0, 0)
-        breakdown_layout.setSpacing(10)
-
+        asset_allocation = self._create_asset_allocation_card()
+        
+        # Risk Assessment Card
+        risk_assessment = self._create_risk_assessment_card()
+        
+        # Add both cards to section layout
+        section_layout.addWidget(asset_allocation, 1)
+        section_layout.addWidget(risk_assessment, 1)
+        
+        self.content_layout.addWidget(section)
+        
+        # Store reference for responsive design
+        self.analysis_section = section
+        self.analysis_section_layout = section_layout
+    
+    def _create_asset_allocation_card(self):
+        """Create asset allocation card with exact same style as Card in main window"""
+        # Card with exact styling from main window
+        card = QFrame()
+        card.setStyleSheet(GlobalStyle.CARD_STYLE)
+        
+        # Shadow effect - exact match
+        shadow = QGraphicsDropShadowEffect()
+        shadow.setBlurRadius(20)
+        shadow.setColor(QColor(0, 0, 0, 40))  # More subtle shadow
+        shadow.setOffset(0, 4)
+        card.setGraphicsEffect(shadow)
+        
+        # Layout with same margins as main window
+        card_layout = QVBoxLayout(card)
+        card_layout.setContentsMargins(20, 20, 20, 20)
+        card_layout.setSpacing(15)
+        
+        # Title and filter
+        header_layout = QHBoxLayout()
+        
+        title = QLabel("Asset Allocation")
+        title.setStyleSheet(GlobalStyle.SUBHEADER_STYLE)
+        
+        # View selector with same styling
+        view_combo = QComboBox()
+        view_combo.addItems(["By Asset Class", "By Sector", "By Region"])
+        view_combo.setFixedWidth(140)
+        view_combo.setStyleSheet(f"""
+            QComboBox {{
+                background-color: {ColorPalette.BG_DARK};
+                color: {ColorPalette.TEXT_PRIMARY};
+                border: none;
+                border-radius: 6px;
+                padding: 5px 10px;
+            }}
+            QComboBox::drop-down {{
+                subcontrol-origin: padding;
+                subcontrol-position: top right;
+                width: 20px;
+                border: none;
+            }}
+        """)
+        
+        header_layout.addWidget(title)
+        header_layout.addStretch()
+        header_layout.addWidget(view_combo)
+        
+        card_layout.addLayout(header_layout)
+        
+        # Content container - same darker background as main window
+        content_frame = QFrame()
+        content_frame.setStyleSheet(f"""
+            background-color: {ColorPalette.CARD_BG_DARKER};
+            border-radius: 8px;
+        """)
+        
+        content_layout = QHBoxLayout(content_frame)
+        content_layout.setContentsMargins(20, 20, 20, 20)
+        
+        # Pie chart with same colors as main window
+        pie_chart = QLabel()
+        pie_chart.setFixedSize(140, 140)
+        
+        # Create pie chart
+        chart_pixmap = QPixmap(140, 140)
+        chart_pixmap.fill(Qt.transparent)
+        
+        painter = QPainter(chart_pixmap)
+        painter.setRenderHint(QPainter.Antialiasing)
+        
+        center = QPoint(70, 70)
+        radius = 60
+        
+        # Draw pie slices with same colors as main window
+        painter.setPen(Qt.NoPen)
+        
+        # Stocks (65%)
+        painter.setBrush(QColor(ColorPalette.ACCENT_PRIMARY))
+        painter.drawPie(center.x() - radius, center.y() - radius, 
+                      radius * 2, radius * 2, 
+                      0, int(65 * 360 * 16 / 100))
+        
+        # Bonds (20%)
+        painter.setBrush(QColor(ColorPalette.ACCENT_SUCCESS))
+        painter.drawPie(center.x() - radius, center.y() - radius, 
+                      radius * 2, radius * 2, 
+                      int(65 * 360 * 16 / 100), int(20 * 360 * 16 / 100))
+        
+        # ETFs (10%)
+        painter.setBrush(QColor(ColorPalette.ACCENT_INFO))
+        painter.drawPie(center.x() - radius, center.y() - radius, 
+                      radius * 2, radius * 2, 
+                      int(85 * 360 * 16 / 100), int(10 * 360 * 16 / 100))
+        
+        # Cash (5%)
+        painter.setBrush(QColor(ColorPalette.ACCENT_WARNING))
+        painter.drawPie(center.x() - radius, center.y() - radius, 
+                      radius * 2, radius * 2, 
+                      int(95 * 360 * 16 / 100), int(5 * 360 * 16 / 100))
+        
+        # Draw inner circle for donut effect
+        painter.setBrush(QColor(ColorPalette.CARD_BG_DARKER))
+        painter.drawEllipse(center, radius * 0.6, radius * 0.6)
+        
+        painter.end()
+        pie_chart.setPixmap(chart_pixmap)
+        
+        # Legend with same styling as main window
+        legend_layout = QVBoxLayout()
+        legend_layout.setSpacing(10)
+        
         allocations = [
             {"category": "Stocks", "percentage": 65, "color": ColorPalette.ACCENT_PRIMARY},
             {"category": "Bonds", "percentage": 20, "color": ColorPalette.ACCENT_SUCCESS},
             {"category": "ETFs", "percentage": 10, "color": ColorPalette.ACCENT_INFO},
             {"category": "Cash", "percentage": 5, "color": ColorPalette.ACCENT_WARNING}
         ]
-
-        for i, alloc in enumerate(allocations):
-            category_label = QLabel(alloc["category"])
-            category_label.setStyleSheet(f"color: {ColorPalette.TEXT_PRIMARY};")
+        
+        for alloc in allocations:
+            item_layout = QHBoxLayout()
             
-            percentage_label = QLabel(f"{alloc['percentage']}%")
-            percentage_label.setStyleSheet(f"color: {ColorPalette.TEXT_SECONDARY};")
-            
-            progress_bar = QFrame()
-            progress_bar.setStyleSheet(f"""
-                background-color: {alloc['color']}30;
-                border-radius: 4px;
-            """)
-            progress_bar.setFixedHeight(10)
-            
-            progress_indicator = QFrame(progress_bar)
-            progress_indicator.setStyleSheet(f"""
+            # Color box - same size and style
+            color_box = QFrame()
+            color_box.setFixedSize(12, 12)
+            color_box.setStyleSheet(f"""
                 background-color: {alloc['color']};
-                border-radius: 4px;
-            """)
-            progress_indicator.setGeometry(0, 0, progress_bar.width() * (alloc['percentage']/100), 10)
-
-            breakdown_layout.addWidget(category_label, i, 0)
-            breakdown_layout.addWidget(progress_bar, i, 1)
-            breakdown_layout.addWidget(percentage_label, i, 2)
-
-        asset_layout.addWidget(allocation_breakdown)
-
-        # Risk Assessment Card
-        risk_assessment = QFrame()
-        risk_assessment.setStyleSheet(GlobalStyle.CARD_STYLE)
-        risk_layout = QVBoxLayout(risk_assessment)
-        risk_layout.setContentsMargins(20, 20, 20, 20)
-        risk_layout.setSpacing(15)
-
-        # Title
-        risk_title = QLabel("Risk Assessment")
-        risk_title.setStyleSheet(GlobalStyle.SUBHEADER_STYLE)
-        risk_layout.addWidget(risk_title)
-
-        # Risk level indicator
-        risk_level_widget = QWidget()
-        risk_level_layout = QHBoxLayout(risk_level_widget)
-        risk_level_layout.setContentsMargins(0, 0, 0, 0)
-        risk_level_layout.setSpacing(10)
-
-        risk_levels = ["Low", "Medium-Low", "Medium", "Medium-High", "High"]
-        for level in risk_levels:
-            level_indicator = QFrame()
-            level_indicator.setFixedSize(40, 10)
-            level_indicator.setStyleSheet(f"""
-                background-color: {ColorPalette.BORDER_LIGHT}30;
-                border-radius: 4px;
+                border-radius: 2px;
             """)
             
-            # Highlight current risk level
-            if level == "Medium":
+            # Text content with same styling
+            text_layout = QVBoxLayout()
+            text_layout.setSpacing(2)
+            
+            category = QLabel(alloc["category"])
+            category.setStyleSheet(f"color: {ColorPalette.TEXT_PRIMARY}; font-weight: bold;")
+            
+            percentage = QLabel(f"{alloc['percentage']}%")
+            percentage.setStyleSheet(f"color: {ColorPalette.TEXT_SECONDARY}; font-size: 12px;")
+            
+            text_layout.addWidget(category)
+            text_layout.addWidget(percentage)
+            
+            item_layout.addWidget(color_box)
+            item_layout.addSpacing(8)
+            item_layout.addLayout(text_layout)
+            item_layout.addStretch()
+            
+            legend_layout.addLayout(item_layout)
+        
+        legend_layout.addStretch()
+        
+        content_layout.addWidget(pie_chart)
+        content_layout.addLayout(legend_layout)
+        
+        card_layout.addWidget(content_frame)
+        
+        # Action button with same styling
+        rebalance_btn = QPushButton("Rebalance Portfolio")
+        rebalance_btn.setStyleSheet(GlobalStyle.SECONDARY_BUTTON)
+        rebalance_btn.setCursor(Qt.PointingHandCursor)
+        rebalance_btn.setFixedHeight(36)
+        
+        card_layout.addWidget(rebalance_btn)
+        
+        return card
+    
+    def _create_risk_assessment_card(self):
+        """Create risk assessment card with exact same style as Card in main window"""
+        # Card with exact styling
+        card = QFrame()
+        card.setStyleSheet(GlobalStyle.CARD_STYLE)
+        
+        # Shadow effect - exact match
+        shadow = QGraphicsDropShadowEffect()
+        shadow.setBlurRadius(20)
+        shadow.setColor(QColor(0, 0, 0, 40))
+        shadow.setOffset(0, 4)
+        card.setGraphicsEffect(shadow)
+        
+        # Layout with same margins
+        card_layout = QVBoxLayout(card)
+        card_layout.setContentsMargins(20, 20, 20, 20)
+        card_layout.setSpacing(15)
+        
+        # Title - same styling
+        title = QLabel("Risk Assessment")
+        title.setStyleSheet(GlobalStyle.SUBHEADER_STYLE)
+        card_layout.addWidget(title)
+        
+        # Content container - same darker background
+        content_frame = QFrame()
+        content_frame.setStyleSheet(f"""
+            background-color: {ColorPalette.CARD_BG_DARKER};
+            border-radius: 8px;
+        """)
+        
+        content_layout = QVBoxLayout(content_frame)
+        content_layout.setContentsMargins(20, 20, 20, 20)
+        content_layout.setSpacing(15)
+        
+        # Current risk level
+        risk_level_label = QLabel("Current Risk Level")
+        risk_level_label.setStyleSheet(f"color: {ColorPalette.TEXT_SECONDARY}; font-size: 14px;")
+        
+        risk_value = QLabel("Medium")
+        risk_value.setStyleSheet(f"""
+            color: {ColorPalette.ACCENT_WARNING};
+            font-size: 24px;
+            font-weight: bold;
+        """)
+        
+        # Risk scale with same styling
+        scale_layout = QHBoxLayout()
+        scale_layout.setSpacing(5)
+        
+        risk_levels = ["Low", "Medium-Low", "Medium", "Medium-High", "High"]
+        for i, level in enumerate(risk_levels):
+            level_indicator = QFrame()
+            level_indicator.setFixedHeight(8)
+            level_indicator.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            
+            # Make the current level and previous levels active - same coloring
+            if i <= 2:  # Up to Medium
                 level_indicator.setStyleSheet(f"""
                     background-color: {ColorPalette.ACCENT_WARNING};
                     border-radius: 4px;
                 """)
+            else:
+                level_indicator.setStyleSheet(f"""
+                    background-color: {ColorPalette.BORDER_LIGHT}30;
+                    border-radius: 4px;
+                """)
             
-            risk_level_layout.addWidget(level_indicator)
-
-        risk_layout.addWidget(risk_level_widget)
-
-        # Risk description
-        risk_desc = QLabel("Your portfolio has a balanced risk profile with moderate volatility.")
+            scale_layout.addWidget(level_indicator)
+        
+        # Risk labels - same text style
+        label_layout = QHBoxLayout()
+        
+        low_label = QLabel("Low Risk")
+        low_label.setStyleSheet(f"color: {ColorPalette.TEXT_SECONDARY}; font-size: 12px;")
+        
+        high_label = QLabel("High Risk")
+        high_label.setStyleSheet(f"color: {ColorPalette.TEXT_SECONDARY}; font-size: 12px;")
+        high_label.setAlignment(Qt.AlignRight)
+        
+        label_layout.addWidget(low_label)
+        label_layout.addStretch()
+        label_layout.addWidget(high_label)
+        
+        # Risk description - same paragraph styling
+        risk_desc = QLabel("Your portfolio has a balanced risk profile with moderate volatility. This approach balances growth potential with downside protection.")
+        risk_desc.setWordWrap(True)
         risk_desc.setStyleSheet(f"""
             color: {ColorPalette.TEXT_SECONDARY};
             font-size: 13px;
+            line-height: 1.4;
         """)
-        risk_desc.setWordWrap(True)
-        risk_layout.addWidget(risk_desc)
-
-        # Add to section layout
-        section_layout.addWidget(asset_allocation, 1)
-        section_layout.addWidget(risk_assessment, 1)
-
-        # Add to content layout
-        self.content_layout.addWidget(section)
-
-    def _setup_portfolio_composition_section(self):
-        """Create a section for portfolio composition and performance"""
+        
+        # Add all elements to content layout
+        content_layout.addWidget(risk_level_label)
+        content_layout.addWidget(risk_value)
+        content_layout.addSpacing(5)
+        content_layout.addLayout(scale_layout)
+        content_layout.addLayout(label_layout)
+        content_layout.addSpacing(10)
+        content_layout.addWidget(risk_desc)
+        
+        card_layout.addWidget(content_frame)
+        
+        # Action button - same styling
+        adjust_btn = QPushButton("Adjust Risk Profile")
+        adjust_btn.setStyleSheet(GlobalStyle.SECONDARY_BUTTON)
+        adjust_btn.setCursor(Qt.PointingHandCursor)
+        adjust_btn.setFixedHeight(36)
+        
+        card_layout.addWidget(adjust_btn)
+        
+        return card
+    
+    def _setup_portfolio_holdings_section(self):
+        """Create a section for portfolio holdings and performance"""
         section = QFrame()
         section_layout = QHBoxLayout(section)
         section_layout.setContentsMargins(0, 0, 0, 0)
         section_layout.setSpacing(20)
-
-        # Detailed Holdings Card
-        holdings_card = QFrame()
-        holdings_card.setStyleSheet(GlobalStyle.CARD_STYLE)
-        holdings_layout = QVBoxLayout(holdings_card)
-        holdings_layout.setContentsMargins(20, 20, 20, 20)
-        holdings_layout.setSpacing(15)
-
-        # Title and Sort
-        title_layout = QHBoxLayout()
-        holdings_title = QLabel("Your Holdings")
-        holdings_title.setStyleSheet(GlobalStyle.SUBHEADER_STYLE)
         
+        # Holdings Card - exact same style as OwnedStocksWidget in main window
+        holdings_card = self._create_holdings_card()
+        
+        # Performance Card - with same styling
+        performance_card = self._create_performance_card()
+        
+        # Add cards to section layout
+        section_layout.addWidget(holdings_card, 2)
+        section_layout.addWidget(performance_card, 1)
+        
+        self.content_layout.addWidget(section)
+        
+        # Store reference for responsive design
+        self.holdings_section = section
+        self.holdings_section_layout = section_layout
+    
+    def _create_holdings_card(self):
+        """Create holdings card with exact same style as OwnedStocksWidget in main window"""
+        # Card with same styling
+        card = QFrame()
+        card.setStyleSheet(GlobalStyle.CARD_STYLE)
+        
+        # Shadow effect - exact match
+        shadow = QGraphicsDropShadowEffect()
+        shadow.setBlurRadius(20)
+        shadow.setColor(QColor(0, 0, 0, 40))
+        shadow.setOffset(0, 4)
+        card.setGraphicsEffect(shadow)
+        
+        # Main layout with same margins
+        card_layout = QVBoxLayout(card)
+        card_layout.setContentsMargins(20, 20, 20, 20)
+        card_layout.setSpacing(15)
+        
+        # Header with title and sort option - exact match
+        header_layout = QHBoxLayout()
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        
+        # Title - same styling
+        title = QLabel("Your Portfolio")
+        title.setStyleSheet(f"""
+            color: {ColorPalette.TEXT_PRIMARY};
+            font-size: 18px;
+            font-weight: bold;
+        """)
+        
+        # Sort dropdown - same styling
         sort_combo = QComboBox()
-        sort_combo.addItems(["Performance", "Alphabetical", "Position Size"])
+        sort_combo.addItems(["Performance", "Alphabetical", "Position Size", "Recent Change"])
+        sort_combo.setFixedWidth(140)
         sort_combo.setStyleSheet(f"""
             QComboBox {{
                 background-color: {ColorPalette.BG_DARK};
@@ -277,323 +718,445 @@ class PortfolioPage(QWidget):
                 border-radius: 6px;
                 padding: 5px 10px;
             }}
+            QComboBox::drop-down {{
+                subcontrol-origin: padding;
+                subcontrol-position: top right;
+                width: 20px;
+                border: none;
+            }}
         """)
-
-        title_layout.addWidget(holdings_title)
-        title_layout.addStretch()
-        title_layout.addWidget(sort_combo)
-        holdings_layout.addLayout(title_layout)
-
-        # Holdings Table
-        holdings_table = QTableWidget()
-        holdings_table.setColumnCount(5)
-        holdings_table.setHorizontalHeaderLabels(["Stock", "Shares", "Price", "Total Value", "Change"])
-        holdings_table.setStyleSheet(GlobalStyle.TABLE_STYLE)
-        holdings_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-
-        # Sample holdings data
-        holdings_data = [
-            {"name": "Apple Inc.", "shares": 25, "price": "$173.45", "total": "$4,336.25", "change": "+1.2%"},
-            {"name": "Microsoft Corp", "shares": 15, "price": "$324.62", "total": "$4,869.30", "change": "+0.8%"},
-            {"name": "Google LLC", "shares": 10, "price": "$139.78", "total": "$1,397.80", "change": "-0.6%"},
-            {"name": "Amazon.com Inc", "shares": 8, "price": "$128.91", "total": "$1,031.28", "change": "+2.3%"},
-            {"name": "Tesla Inc", "shares": 20, "price": "$238.79", "total": "$4,775.80", "change": "-1.5%"}
-        ]
-
-        holdings_table.setRowCount(len(holdings_data))
-        for row, holding in enumerate(holdings_data):
-            # Stock name
-            name_item = QTableWidgetItem(holding["name"])
-            name_item.setFlags(name_item.flags() & ~Qt.ItemIsEditable)
-
-            # Shares
-            shares_item = QTableWidgetItem(str(holding["shares"]))
-            shares_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            shares_item.setFlags(shares_item.flags() & ~Qt.ItemIsEditable)
-
-            # Price
-            price_item = QTableWidgetItem(holding["price"])
-            price_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            price_item.setFlags(price_item.flags() & ~Qt.ItemIsEditable)
-
-            # Total Value
-            total_item = QTableWidgetItem(holding["total"])
-            total_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            total_item.setFlags(total_item.flags() & ~Qt.ItemIsEditable)
-
-            # Change
-            change_item = QTableWidgetItem(holding["change"])
-            change_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            if float(holding["change"].rstrip('%')) >= 0:
-                change_item.setForeground(QColor(ColorPalette.ACCENT_SUCCESS))
-            else:
-                change_item.setForeground(QColor(ColorPalette.ACCENT_DANGER))
-            change_item.setFlags(change_item.flags() & ~Qt.ItemIsEditable)
-
-            # Set items in the table
-            holdings_table.setItem(row, 0, name_item)
-            holdings_table.setItem(row, 1, shares_item)
-            holdings_table.setItem(row, 2, price_item)
-            holdings_table.setItem(row, 3, total_item)
-            holdings_table.setItem(row, 4, change_item)
-
-        holdings_layout.addWidget(holdings_table)
-
-        # Actions
-        action_layout = QHBoxLayout()
-        action_buttons = [
-            {"text": "Buy", "style": GlobalStyle.PRIMARY_BUTTON},
-            {"text": "Sell", "style": GlobalStyle.SECONDARY_BUTTON}
-        ]
-
-        for btn_info in action_buttons:
-            btn = QPushButton(btn_info["text"])
-            btn.setStyleSheet(btn_info["style"])
-            btn.setFixedHeight(36)
-            action_layout.addWidget(btn)
-
-        holdings_layout.addLayout(action_layout)
-
-        # Performance Insights Card
-        performance_card = QFrame()
-        performance_card.setStyleSheet(GlobalStyle.CARD_STYLE)
-        performance_layout = QVBoxLayout(performance_card)
-        performance_layout.setContentsMargins(20, 20, 20, 20)
-        performance_layout.setSpacing(15)
-
-        # Title
-        performance_title = QLabel("Performance Insights")
-        performance_title.setStyleSheet(GlobalStyle.SUBHEADER_STYLE)
-        performance_layout.addWidget(performance_title)
-
-        # Performance Metrics
-        metrics_widget = QWidget()
-        metrics_layout = QGridLayout(metrics_widget)
-        metrics_layout.setContentsMargins(0, 0, 0, 0)
-        metrics_layout.setSpacing(10)
-
-        performance_metrics = [
-            {"label": "Total Return", "value": "+24.5%", "color": ColorPalette.ACCENT_SUCCESS},
-            {"label": "Benchmark (S&P 500)", "value": "+18.2%", "color": ColorPalette.ACCENT_INFO},
-            {"label": "Dividend Yield", "value": "2.3%", "color": ColorPalette.TEXT_PRIMARY},
-            {"label": "Sharpe Ratio", "value": "1.42", "color": ColorPalette.TEXT_PRIMARY}
-        ]
-
-        for i, metric in enumerate(performance_metrics):
-            label = QLabel(metric["label"])
-            label.setStyleSheet(f"color: {ColorPalette.TEXT_SECONDARY};")
-
-            value = QLabel(metric["value"])
-            value.setStyleSheet(f"""
-                color: {metric['color']};
-                font-weight: bold;
-            """)
-
-            metrics_layout.addWidget(label, i, 0)
-            metrics_layout.addWidget(value, i, 1)
-
-        performance_layout.addWidget(metrics_widget)
-
-        # Historical Performance Graph Placeholder
-        graph_placeholder = QFrame()
-        graph_placeholder.setMinimumHeight(200)
-        graph_placeholder.setStyleSheet(f"""
+        
+        header_layout.addWidget(title)
+        header_layout.addStretch()
+        header_layout.addWidget(sort_combo)
+        
+        card_layout.addLayout(header_layout)
+        
+        # Stocks container - same darker background
+        stocks_container = QFrame()
+        stocks_container.setStyleSheet(f"""
             background-color: {ColorPalette.CARD_BG_DARKER};
             border-radius: 8px;
         """)
-        performance_layout.addWidget(graph_placeholder)
-
-        # Add to section layout
-        section_layout.addWidget(holdings_card, 2)
-        section_layout.addWidget(performance_card, 1)
-
-        # Add to content layout
-        self.content_layout.addWidget(section)
-
-    def _setup_performance_tracking_section(self):
-        """Create a section for advanced performance tracking and analysis"""
-        section = QFrame()
-        section_layout = QHBoxLayout(section)
-        section_layout.setContentsMargins(0, 0, 0, 0)
-        section_layout.setSpacing(20)
-
-        # Transaction History Card
-        transactions_card = QFrame()
-        transactions_card.setStyleSheet(GlobalStyle.CARD_STYLE)
-        transactions_layout = QVBoxLayout(transactions_card)
-        transactions_layout.setContentsMargins(20, 20, 20, 20)
-        transactions_layout.setSpacing(15)
-
-        # Title and Filter
-        title_layout = QHBoxLayout()
-        transactions_title = QLabel("Transaction History")
-        transactions_title.setStyleSheet(GlobalStyle.SUBHEADER_STYLE)
-
-        # Time period filter
-        period_combo = QComboBox()
-        period_combo.addItems(["This Month", "Last 3 Months", "This Year", "All Time"])
-        period_combo.setStyleSheet(f"""
-            QComboBox {{
-                background-color: {ColorPalette.BG_DARK};
-                color: {ColorPalette.TEXT_PRIMARY};
+        
+        stocks_layout = QVBoxLayout(stocks_container)
+        stocks_layout.setContentsMargins(0, 0, 0, 0)
+        stocks_layout.setSpacing(0)  # No spacing between items - exact match to main window
+        
+        # Sample stock data - same as in main window
+        stocks = [
+            {"name": "Apple Inc.", "amount": "25", "price": "173.45", "change": 1.2},
+            {"name": "Microsoft Corp", "amount": "15", "price": "324.62", "change": 0.8},
+            {"name": "Google LLC", "amount": "10", "price": "139.78", "change": -0.6},
+            {"name": "Amazon.com Inc", "amount": "8", "price": "128.91", "change": 2.3},
+            {"name": "Tesla Inc", "amount": "20", "price": "238.79", "change": -1.5}
+        ]
+        
+        # Create stock items - exact same style as in StockItem class from main window
+        for i, stock in enumerate(stocks):
+            # Create identical stock item
+            item = QFrame()
+            
+            # Style with only bottom border when needed - exact match
+            border_style = "none" if (i == len(stocks) - 1) else f"1px solid {ColorPalette.BORDER_DARK}"
+            item.setStyleSheet(f"""
+                background-color: transparent;
                 border: none;
-                border-radius: 6px;
-                padding: 5px 10px;
-            }}
+                border-bottom: {border_style};
+            """)
+            
+            item.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            item.setFixedHeight(65)  # Same height as main window
+            
+            # Item layout - same margins
+            item_layout = QHBoxLayout(item)
+            item_layout.setContentsMargins(10, 8, 10, 8)
+            item_layout.setSpacing(12)
+            
+            # Icon with company initials - same as in main window
+            initials = self._get_stock_initials(stock["name"])
+            color = self._get_stock_color(stock["name"])
+            icon = AvatarWidget(initials, size=38, background_color=color)
+            
+            # Stock info - same layout and styling
+            info_layout = QVBoxLayout()
+            info_layout.setSpacing(2)  # Same tight spacing
+            
+            name_label = QLabel(stock["name"])
+            name_label.setStyleSheet(f"color: {ColorPalette.TEXT_PRIMARY}; font-weight: bold; font-size: 14px;")
+            
+            shares_label = QLabel(f"{stock['amount']} shares")
+            shares_label.setStyleSheet(f"color: {ColorPalette.TEXT_SECONDARY}; font-size: 12px;")
+            
+            info_layout.addWidget(name_label)
+            info_layout.addWidget(shares_label)
+            
+            # Price and change - same vertical layout
+            value_layout = QVBoxLayout()
+            value_layout.setSpacing(2)
+            value_layout.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            
+            # Price - same styling
+            price_label = QLabel(f"${stock['price']}")
+            price_label.setStyleSheet(f"color: {ColorPalette.TEXT_PRIMARY}; font-weight: bold; font-size: 15px;")
+            price_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            
+            # Change with colored background - exact match
+            change_value = stock["change"]
+            change_color = ColorPalette.ACCENT_SUCCESS if change_value > 0 else ColorPalette.ACCENT_DANGER
+            change_text = f"+{change_value}%" if change_value > 0 else f"{change_value}%"
+            
+            change_label = QLabel(change_text)
+            change_label.setStyleSheet(f"""
+                color: {change_color}; 
+                font-weight: bold; 
+                font-size: 13px;
+                background-color: {change_color}10; 
+                padding: 2px 6px; 
+                border-radius: 4px;
+            """)
+            change_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            
+            value_layout.addWidget(price_label)
+            value_layout.addWidget(change_label)
+            
+            # Add components to item layout
+            item_layout.addWidget(icon)
+            item_layout.addLayout(info_layout, 1)  # 1 = stretch factor - same as main window
+            item_layout.addLayout(value_layout)
+            
+            stocks_layout.addWidget(item)
+        
+        # Action buttons - same layout and styling as main window
+        action_layout = QHBoxLayout()
+        action_layout.setContentsMargins(15, 15, 15, 15)
+        
+        add_btn = QPushButton("+ Add Stock")
+        add_btn.setStyleSheet(GlobalStyle.SECONDARY_BUTTON)
+        add_btn.setCursor(Qt.PointingHandCursor)
+        add_btn.setFixedHeight(36)
+        
+        view_all_btn = QPushButton("View All")
+        view_all_btn.setStyleSheet(GlobalStyle.SECONDARY_BUTTON)
+        view_all_btn.setCursor(Qt.PointingHandCursor)
+        view_all_btn.setFixedHeight(36)
+        
+        action_layout.addWidget(add_btn)
+        action_layout.addStretch()
+        action_layout.addWidget(view_all_btn)
+        
+        stocks_layout.addLayout(action_layout)
+        
+        card_layout.addWidget(stocks_container)
+        
+        # Portfolio summary stats at the bottom - same as main window
+        summary_layout = QHBoxLayout()
+        summary_layout.setContentsMargins(20, 0, 20, 20)  # Bottom padding
+        summary_layout.setSpacing(20)
+        
+        # Stats matching the main window
+        stats = [
+            {"label": "Total Value", "value": "$26,489.32"},
+            {"label": "Daily Change", "value": "+$312.45 (1.2%)"},
+            {"label": "YTD Return", "value": "+18.7%"}
+        ]
+        
+        for stat in stats:
+            stat_widget = QWidget()
+            stat_layout = QVBoxLayout(stat_widget)
+            stat_layout.setContentsMargins(0, 0, 0, 0)
+            stat_layout.setSpacing(3)
+            
+            label = QLabel(stat["label"])
+            label.setStyleSheet(f"color: {ColorPalette.TEXT_SECONDARY}; font-size: 12px;")
+            
+            value = QLabel(stat["value"])
+            value.setStyleSheet(f"color: {ColorPalette.TEXT_PRIMARY}; font-size: 15px; font-weight: bold;")
+            
+            stat_layout.addWidget(label)
+            stat_layout.addWidget(value)
+            
+            summary_layout.addWidget(stat_widget)
+        
+        # Add flexible spacer at the end
+        summary_layout.addStretch()
+        
+        card_layout.addLayout(summary_layout)
+        
+        return card
+    
+    def _create_performance_card(self):
+        """Create performance card with exact same styling as Card in main window"""
+        # Card with same styling
+        card = QFrame()
+        card.setStyleSheet(GlobalStyle.CARD_STYLE)
+        
+        # Shadow effect - exact match
+        shadow = QGraphicsDropShadowEffect()
+        shadow.setBlurRadius(20)
+        shadow.setColor(QColor(0, 0, 0, 40))
+        shadow.setOffset(0, 4)
+        card.setGraphicsEffect(shadow)
+        
+        # Main layout with same margins
+        card_layout = QVBoxLayout(card)
+        card_layout.setContentsMargins(20, 20, 20, 20)
+        card_layout.setSpacing(15)
+        
+        # Title - same styling
+        title = QLabel("Performance Insights")
+        title.setStyleSheet(GlobalStyle.SUBHEADER_STYLE)
+        card_layout.addWidget(title)
+        
+        # Content container - same darker background
+        content_frame = QFrame()
+        content_frame.setStyleSheet(f"""
+            background-color: {ColorPalette.CARD_BG_DARKER};
+            border-radius: 8px;
         """)
-
-        title_layout.addWidget(transactions_title)
-        title_layout.addStretch()
-        title_layout.addWidget(period_combo)
-        transactions_layout.addLayout(title_layout)
-
-        # Transaction Table
-        transactions_table = QTableWidget()
-        transactions_table.setColumnCount(5)
-        transactions_table.setHorizontalHeaderLabels(["Date", "Type", "Stock", "Shares", "Total Value"])
-        transactions_table.setStyleSheet(GlobalStyle.TABLE_STYLE)
-        transactions_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-
-        # Sample transaction data
-        transactions_data = [
-            {"date": "Mar 1, 2025", "type": "Buy", "stock": "Apple Inc.", "shares": 10, "value": "$1,734.50"},
-            {"date": "Feb 15, 2025", "type": "Sell", "stock": "Tesla Inc", "shares": 5, "value": "$1,193.95"},
-            {"date": "Feb 1, 2025", "type": "Buy", "stock": "Microsoft Corp", "shares": 8, "value": "$2,596.96"},
-            {"date": "Jan 20, 2025", "type": "Dividend", "stock": "Johnson & Johnson", "shares": 0, "value": "$247.50"},
-            {"date": "Jan 5, 2025", "type": "Buy", "stock": "Amazon.com Inc", "shares": 3, "value": "$384.63"}
+        
+        content_layout = QVBoxLayout(content_frame)
+        content_layout.setContentsMargins(20, 20, 20, 20)
+        content_layout.setSpacing(15)
+        
+        # Key metrics at the top
+        metrics_layout = QHBoxLayout()
+        metrics_layout.setSpacing(20)
+        
+        # Same metrics styling
+        performance_metrics = [
+            {"label": "Total Return", "value": "+24.5%", "color": ColorPalette.ACCENT_SUCCESS},
+            {"label": "Benchmark", "value": "+18.2%", "color": ColorPalette.TEXT_PRIMARY}
         ]
-
-        transactions_table.setRowCount(len(transactions_data))
-        for row, transaction in enumerate(transactions_data):
-            # Date
-            date_item = QTableWidgetItem(transaction["date"])
-            date_item.setFlags(date_item.flags() & ~Qt.ItemIsEditable)
-
-            # Type
-            type_item = QTableWidgetItem(transaction["type"])
-            type_item.setFlags(type_item.flags() & ~Qt.ItemIsEditable)
-            if transaction["type"] == "Buy":
-                type_item.setForeground(QColor(ColorPalette.ACCENT_SUCCESS))
-            elif transaction["type"] == "Sell":
-                type_item.setForeground(QColor(ColorPalette.ACCENT_DANGER))
-            else:
-                type_item.setForeground(QColor(ColorPalette.ACCENT_INFO))
-
-            # Stock
-            stock_item = QTableWidgetItem(transaction["stock"])
-            stock_item.setFlags(stock_item.flags() & ~Qt.ItemIsEditable)
-
-            # Shares
-            shares_item = QTableWidgetItem(str(transaction["shares"]))
-            shares_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            shares_item.setFlags(shares_item.flags() & ~Qt.ItemIsEditable)
-
-            # Total Value
-            value_item = QTableWidgetItem(transaction["value"])
-            value_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            value_item.setFlags(value_item.flags() & ~Qt.ItemIsEditable)
-
-            # Set items in the table
-            transactions_table.setItem(row, 0, date_item)
-            transactions_table.setItem(row, 1, type_item)
-            transactions_table.setItem(row, 2, stock_item)
-            transactions_table.setItem(row, 3, shares_item)
-            transactions_table.setItem(row, 4, value_item)
-
-        transactions_layout.addWidget(transactions_table)
-
-        # Tax Insights Card
-        tax_card = QFrame()
-        tax_card.setStyleSheet(GlobalStyle.CARD_STYLE)
-        tax_layout = QVBoxLayout(tax_card)
-        tax_layout.setContentsMargins(20, 20, 20, 20)
-        tax_layout.setSpacing(15)
-
-        # Title
-        tax_title = QLabel("Tax Insights")
-        tax_title.setStyleSheet(GlobalStyle.SUBHEADER_STYLE)
-        tax_layout.addWidget(tax_title)
-
-        # Tax Metrics
-        tax_metrics_widget = QWidget()
-        tax_metrics_layout = QGridLayout(tax_metrics_widget)
-        tax_metrics_layout.setContentsMargins(0, 0, 0, 0)
-        tax_metrics_layout.setSpacing(10)
-
-        tax_metrics = [
-            {"label": "Capital Gains", "value": "$12,456", "color": ColorPalette.ACCENT_WARNING},
-            {"label": "Dividend Income", "value": "$3,245", "color": ColorPalette.ACCENT_SUCCESS},
-            {"label": "Estimated Tax Liability", "value": "$4,567", "color": ColorPalette.ACCENT_DANGER},
-            {"label": "Tax-Efficient Strategies", "value": "Recommended", "color": ColorPalette.ACCENT_INFO}
-        ]
-
-        for i, metric in enumerate(tax_metrics):
+        
+        for metric in performance_metrics:
+            metric_widget = QWidget()
+            metric_layout = QVBoxLayout(metric_widget)
+            metric_layout.setContentsMargins(0, 0, 0, 0)
+            metric_layout.setSpacing(2)
+            
             label = QLabel(metric["label"])
-            label.setStyleSheet(f"color: {ColorPalette.TEXT_SECONDARY};")
-
+            label.setStyleSheet(f"color: {ColorPalette.TEXT_SECONDARY}; font-size: 12px;")
+            
             value = QLabel(metric["value"])
             value.setStyleSheet(f"""
                 color: {metric['color']};
+                font-size: 18px;
                 font-weight: bold;
             """)
-
-            tax_metrics_layout.addWidget(label, i, 0)
-            tax_metrics_layout.addWidget(value, i, 1)
-
-        tax_layout.addWidget(tax_metrics_widget)
-
-        # Tax Optimization Advice
-        tax_advice = QLabel("Consider harvesting tax losses and maximizing retirement account contributions.")
-        tax_advice.setStyleSheet(f"""
-            color: {ColorPalette.TEXT_SECONDARY};
-            font-size: 13px;
-            border: 1px solid {ColorPalette.BORDER_DARK};
-            border-radius: 6px;
-            padding: 10px;
-            background-color: {ColorPalette.CARD_BG_DARKER};
-        """)
-        tax_advice.setWordWrap(True)
-        tax_layout.addWidget(tax_advice)
-
-        # Add to section layout
-        section_layout.addWidget(transactions_card, 2)
-        section_layout.addWidget(tax_card, 1)
-
-        # Add to content layout
-        self.content_layout.addWidget(section)
-
+            
+            metric_layout.addWidget(label)
+            metric_layout.addWidget(value)
+            
+            metrics_layout.addWidget(metric_widget)
+        
+        # Add stretch to balance layout
+        metrics_layout.addStretch()
+        
+        content_layout.addLayout(metrics_layout)
+        
+        # Performance graph - with same styling
+        graph_label = QLabel()
+        graph_label.setMinimumHeight(150)
+        graph_label.setStyleSheet("background: transparent;")
+        
+        # Create performance graph with same style
+        pixmap = QPixmap(500, 150)
+        pixmap.fill(Qt.transparent)
+        
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.Antialiasing)
+        
+        # Draw portfolio line (better performance)
+        pen = QPen(QColor(ColorPalette.ACCENT_PRIMARY))
+        pen.setWidth(2)
+        painter.setPen(pen)
+        
+        path = QPainterPath()
+        path.moveTo(0, 120)
+        path.cubicTo(100, 90, 250, 60, 500, 30)  # Upward curve
+        
+        painter.drawPath(path)
+        
+        # Draw benchmark line (lower performance)
+        pen = QPen(QColor(ColorPalette.TEXT_SECONDARY))
+        pen.setWidth(2)
+        pen.setStyle(Qt.DashLine)
+        painter.setPen(pen)
+        
+        bench_path = QPainterPath()
+        bench_path.moveTo(0, 120)
+        bench_path.cubicTo(100, 100, 250, 80, 500, 60)  # Flatter curve
+        
+        painter.drawPath(bench_path)
+        
+        # Add labels
+        painter.setPen(QColor(ColorPalette.TEXT_SECONDARY))
+        font = QFont()
+        font.setPointSize(8)
+        painter.setFont(font)
+        
+        # X-axis labels (months)
+        months = ["Mar", "Jun", "Sep", "Dec", "Mar"]
+        for i, month in enumerate(months):
+            x = i * (500 / (len(months) - 1))
+            painter.drawText(QRect(x - 20, 135, 40, 15), Qt.AlignCenter, month)
+        
+        painter.end()
+        graph_label.setPixmap(pixmap)
+        
+        content_layout.addWidget(graph_label)
+        
+        # Bottom metrics - same styling
+        bottom_metrics = QHBoxLayout()
+        
+        metrics = [
+            {"label": "Sharpe Ratio", "value": "1.42"},
+            {"label": "Beta", "value": "0.85"},
+            {"label": "Volatility", "value": "12.7%"}
+        ]
+        
+        for metric in metrics:
+            metric_widget = QWidget()
+            metric_layout = QVBoxLayout(metric_widget)
+            metric_layout.setContentsMargins(0, 0, 0, 0)
+            metric_layout.setSpacing(2)
+            
+            label = QLabel(metric["label"])
+            label.setStyleSheet(f"color: {ColorPalette.TEXT_SECONDARY}; font-size: 12px;")
+            
+            value = QLabel(metric["value"])
+            value.setStyleSheet(f"color: {ColorPalette.TEXT_PRIMARY}; font-weight: bold;")
+            
+            metric_layout.addWidget(label)
+            metric_layout.addWidget(value)
+            
+            bottom_metrics.addWidget(metric_widget)
+            
+        bottom_metrics.addStretch()
+        
+        content_layout.addLayout(bottom_metrics)
+        
+        card_layout.addWidget(content_frame)
+        
+        # Action button - same styling
+        view_btn = QPushButton("View Detailed Report")
+        view_btn.setStyleSheet(GlobalStyle.SECONDARY_BUTTON)
+        view_btn.setCursor(Qt.PointingHandCursor)
+        view_btn.setFixedHeight(36)
+        
+        card_layout.addWidget(view_btn)
+        
+        return card
+    
+    def _get_stock_initials(self, name):
+        """Get initials from stock name - same as in StockItem class"""
+        parts = name.split()
+        if len(parts) >= 2:
+            return f"{parts[0][0]}{parts[1][0]}".upper()
+        elif name:
+            return name[0].upper()
+        return "S"
+    
+    def _get_stock_color(self, name):
+        """Get a deterministic color for a stock based on name - same as StockItem class"""
+        # Use the first letter to determine the color index
+        if not name:
+            return ColorPalette.ACCENT_PRIMARY
+        
+        index = ord(name[0].lower()) - ord('a')
+        index = max(0, min(index, len(ColorPalette.CHART_COLORS) - 1))
+        return ColorPalette.CHART_COLORS[index]
+    
     def eventFilter(self, obj, event):
         """Handle resize events for responsive design"""
         if obj == self and event.type() == QEvent.Resize:
+            self._adjust_responsive_layout()
+        return super().eventFilter(obj, event)
+    
+    def _adjust_responsive_layout(self):
+        """Adjust layout based on screen width - same responsive behavior as main window"""
+        # Avoid recursive calls
+        if hasattr(self, '_is_adjusting') and self._is_adjusting:
+            return
+        
+        self._is_adjusting = True
+        
+        try:
             width = self.width()
             
-            # Adjust layout for different screen sizes
+            # For narrower screens - same breakpoint as main window
             is_narrow = width < 900
-
+            
+            # Adjust section layouts
+            self._adjust_section_layout(self.analysis_section_layout, is_narrow)
+            self._adjust_section_layout(self.holdings_section_layout, is_narrow)
+            
+            # Adjust content margins - same as main window
             if is_narrow:
-                # Switch to vertical layout for narrow screens
-                for section in [section for section in self.findChildren(QFrame) if section.parent() == self.content_widget]:
-                    layout = section.layout()
-                    if layout and layout.direction() != QBoxLayout.TopToBottom:
-                        layout.setDirection(QBoxLayout.TopToBottom)
+                self.content_layout.setContentsMargins(10, 0, 10, 10)
             else:
-                # Restore horizontal layout
-                for section in [section for section in self.findChildren(QFrame) if section.parent() == self.content_widget]:
-                    layout = section.layout()
-                    if layout and layout.direction() != QBoxLayout.LeftToRight:
-                        layout.setDirection(QBoxLayout.LeftToRight)
+                self.content_layout.setContentsMargins(20, 0, 20, 20)
+                
+        finally:
+            # Use a timer to reset the flag to prevent deadlocks - same as main window
+            QTimer.singleShot(100, self._reset_adjusting_flag)
+    
+    def _reset_adjusting_flag(self):
+        """Safely reset the adjusting flag after a delay - same as main window"""
+        self._is_adjusting = False
+    
+    def _adjust_section_layout(self, layout, is_narrow):
+        """Helper method to adjust a section layout direction - same as main window"""
+        if not layout:
+            return
+            
+        if is_narrow and layout.direction() != QBoxLayout.TopToBottom:
+            layout.setDirection(QBoxLayout.TopToBottom)
+        elif not is_narrow and layout.direction() != QBoxLayout.LeftToRight:
+            layout.setDirection(QBoxLayout.LeftToRight)
 
-        return super().eventFilter(obj, event)
 
+# Main function to run the portfolio page standalone
 def main():
     app = QApplication(sys.argv)
+    
+    # Set app style - same as main window
+    app.setStyle("Fusion")
+    
+    # Create and show window
     window = QWidget()
-    window.setWindowTitle("Portfolio")
-    window.setMinimumSize(900, 650)
+    window.setWindowTitle("StockMaster Pro - Portfolio")
+    window.setMinimumSize(1000, 700)
+    window.setStyleSheet(f"""
+        QWidget {{
+            background-color: {ColorPalette.BG_DARK};
+            color: {ColorPalette.TEXT_PRIMARY};
+            font-family: 'Segoe UI', Arial, sans-serif;
+        }}
+        QScrollBar:vertical {{
+            background: {ColorPalette.BG_DARK};
+            width: 8px;
+            margin: 0px;
+            border-radius: 4px;
+        }}
+        QScrollBar::handle:vertical {{
+            background: {ColorPalette.BORDER_LIGHT};
+            min-height: 30px;
+            border-radius: 4px;
+        }}
+        QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
+            height: 0px;
+        }}
+    """)
+    
     layout = QVBoxLayout(window)
+    layout.setContentsMargins(0, 0, 0, 0)
+    layout.setSpacing(0)
+    
     portfolio_page = PortfolioPage()
     layout.addWidget(portfolio_page)
-
+    
     window.show()
     sys.exit(app.exec())
 
