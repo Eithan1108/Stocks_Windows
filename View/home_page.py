@@ -18,6 +18,12 @@ from View.shared_components import ColorPalette, GlobalStyle, AvatarWidget
 from View.protofilio_view import PortfolioPage
 from View.transaction_view import TransactionsPage
 from View.profile_page import ProfilePage
+from PySide6.QtCore import (Qt, QSize, QRect, QTimer, QPointF, QEvent, QPoint, QEasingCurve,
+                            QPropertyAnimation, Signal, QUrl, QMargins)
+from PySide6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest
+from PySide6.QtSvg import QSvgRenderer
+
+
 
 # Modern color palette
 # Modern color palette with improved contrast and subtle variations
@@ -1022,9 +1028,11 @@ class Sidebar(QFrame):
 
         user_name = self.user.get('username', 'Guest User') if self.user else 'Guest User'
         user_email = self.user.get('email', '') if self.user else ''
+        profile_pic_url = self.user.get('profilePicture', None)
 
         # Avatar
-        avatar = AvatarWidget(user_name, size=36)
+        avatar_content = profile_pic_url if profile_pic_url else user_name
+        avatar = AvatarWidget(avatar_content, size=36)
 
         # User info
         user_layout = QVBoxLayout()
@@ -1069,6 +1077,117 @@ class Sidebar(QFrame):
         # Then add the button to layout instead of the profile_layout
         layout.addWidget(profile_btn)
 
+class AvatarWidget(QFrame):
+    def __init__(self, text_or_url, size=40, background_color=None):
+        super().__init__()
+        self.text = text_or_url if not text_or_url.startswith("http") else ""
+        self.image_url = text_or_url if text_or_url.startswith("http") else None
+        self.size = size
+        self.bg_color = background_color or ColorPalette.ACCENT_PRIMARY
+        
+        # Set fixed size
+        self.setFixedSize(size, size)
+        
+        # Style the widget as a circle
+        self.setStyleSheet(f"""
+            background-color: {self.bg_color};
+            border-radius: {size // 2}px;
+            color: white;
+            font-weight: bold;
+        """)
+        
+        # If we have an image URL, load it
+        if self.image_url:
+            self.load_image_from_url()
+        
+        # Setup layout for text rendering
+        self.layout = QVBoxLayout(self)
+        self.layout.setContentsMargins(0, 0, 0, 0)
+        self.layout.setAlignment(Qt.AlignCenter)
+        
+        # Create label if using text
+        if not self.image_url:
+            self.text_label = QLabel(self.text[:2].upper())  # Use first two characters
+            self.text_label.setAlignment(Qt.AlignCenter)
+            font = QFont()
+            font.setBold(True)
+            font.setPointSize(size // 3)  # Size proportional to avatar size
+            self.text_label.setFont(font)
+            self.text_label.setStyleSheet("color: white; background: transparent;")
+            self.layout.addWidget(self.text_label)
+    
+    def load_image_from_url(self):
+        """Load image from URL and set as avatar background"""
+        try:
+            # Use a network manager to download the image
+            self.network_manager = QNetworkAccessManager()
+            self.network_manager.finished.connect(self.on_image_downloaded)
+            self.network_manager.get(QNetworkRequest(QUrl(self.image_url)))
+        except Exception as e:
+            print(f"Error loading image from URL: {e}")
+            # Fallback to text-based avatar if URL loading fails
+            self.image_url = None
+    
+    def on_image_downloaded(self, reply):
+        """Process downloaded image and apply to the avatar"""
+        try:
+            if reply.error() == QNetworkReply.NoError:
+                data = reply.readAll()
+                pixmap = QPixmap()
+                pixmap.loadFromData(data)
+                
+                # Create a circular mask for the image
+                if not pixmap.isNull():
+                    self.pixmap = self.create_circular_pixmap(pixmap)
+                    self.update()  # Trigger repaint
+                else:
+                    self.image_url = None  # Fallback if pixmap is null
+            else:
+                print(f"Error downloading image: {reply.errorString()}")
+                self.image_url = None  # Fallback if download failed
+        except Exception as e:
+            print(f"Error processing downloaded image: {e}")
+            self.image_url = None
+    
+    def create_circular_pixmap(self, source_pixmap):
+        """Create a circular version of the pixmap"""
+        target = QPixmap(self.size, self.size)
+        target.fill(Qt.transparent)
+        
+        painter = QPainter(target)
+        painter.setRenderHint(QPainter.Antialiasing)
+        
+        # Create circular path
+        path = QPainterPath()
+        path.addEllipse(0, 0, self.size, self.size)
+        
+        # Clip to circle
+        painter.setClipPath(path)
+        
+        # Scale and center the image
+        scaled_pixmap = source_pixmap.scaled(self.size, self.size, 
+                                            Qt.KeepAspectRatioByExpanding, 
+                                            Qt.SmoothTransformation)
+        
+        # Calculate position to center the image if aspect ratio is not 1:1
+        x = (self.size - scaled_pixmap.width()) // 2 if scaled_pixmap.width() > self.size else 0
+        y = (self.size - scaled_pixmap.height()) // 2 if scaled_pixmap.height() > self.size else 0
+        
+        painter.drawPixmap(x, y, scaled_pixmap)
+        painter.end()
+        
+        return target
+    
+    def paintEvent(self, event):
+        """Custom paint event to draw the pixmap if available"""
+        super().paintEvent(event)
+        
+        if hasattr(self, 'pixmap') and not self.pixmap.isNull():
+            painter = QPainter(self)
+            painter.setRenderHint(QPainter.Antialiasing)
+            painter.drawPixmap(0, 0, self.pixmap)
+            painter.end()
+
 # Improved search bar
 class SearchBar(QLineEdit):
     def __init__(self, parent=None):
@@ -1105,9 +1224,12 @@ class SearchBar(QLineEdit):
 
 # Responsive header with improved styling
 class Header(QFrame):
-    def __init__(self, parent=None, user_name=None):
+    def __init__(self, parent=None, user=None):
         super().__init__(parent)
-        self.user_name = user_name or "User"
+
+        self.user_name = user.get('username', 'User')
+        self.profile_pic_url = user.get('profilePicture', None)
+
         self.setMinimumHeight(80)
         self.setStyleSheet("""
             background-color: transparent;
@@ -1213,7 +1335,8 @@ class Header(QFrame):
         """)
 
         # Add avatar to button
-        avatar = AvatarWidget("John Doe", size=36)
+        avatar_content = self.profile_pic_url if self.profile_pic_url else self.user_name
+        avatar = AvatarWidget(avatar_content, size=36)
         avatar_layout = QVBoxLayout(profile_btn)
         avatar_layout.setContentsMargins(0, 0, 0, 0)
         avatar_layout.setAlignment(Qt.AlignCenter)
@@ -1332,7 +1455,7 @@ class DashboardPage(QWidget):
         user_name = self.user.get('username', 'User').split()[0] if self.user else 'User'
 
         # Header with welcome message
-        header = Header(user_name=user_name)
+        header = Header(user=user)
         layout.addWidget(header)
 
         # Scrollable content area for responsiveness
