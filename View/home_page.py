@@ -492,8 +492,9 @@ class StockItem(QFrame):
 
 # Optimized owned stocks widget with better space utilization
 class OwnedStocksWidget(Card):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, stocks=None):
         super().__init__(title="", parent=parent)
+        self.stocks = stocks or []
 
         # Main layout
         main_layout = QVBoxLayout()
@@ -559,22 +560,27 @@ class OwnedStocksWidget(Card):
             border-radius: 8px;
         """)
 
+        # Set up stocks list
         stocks_layout = QVBoxLayout(stocks_container)
         stocks_layout.setContentsMargins(0, 0, 0, 0)
-        stocks_layout.setSpacing(0)  # No spacing between items
-
-        # Sample stocks data - keep same as screenshot
-        stocks = [
-            {"name": "Apple Inc.", "amount": "25", "price": "173.45", "change": 1.2},
-            {"name": "Microsoft Corp", "amount": "15", "price": "324.62", "change": 0.8},
-            {"name": "Google LLC", "amount": "10", "price": "139.78", "change": -0.6},
-            {"name": "Amazon.com Inc", "amount": "8", "price": "128.91", "change": 2.3},
-            {"name": "Tesla Inc", "amount": "20", "price": "238.79", "change": -1.5}
-        ]
-
-        for i, stock in enumerate(stocks):
-            item = StockItem(stock, is_last=(i == len(stocks) - 1))
-            stocks_layout.addWidget(item)
+        stocks_layout.setSpacing(0)
+        
+        if not self.stocks:
+            # Show empty state
+            empty_label = QLabel("You don't have any stocks yet")
+            empty_label.setStyleSheet(f"""
+                color: {ColorPalette.TEXT_SECONDARY};
+                font-size: 14px;
+                text-align: center;
+                padding: 30px;
+            """)
+            empty_label.setAlignment(Qt.AlignCenter)
+            stocks_layout.addWidget(empty_label)
+        else:
+            # Show actual stocks
+            for i, stock in enumerate(self.stocks):
+                item = StockItem(stock, is_last=(i == len(self.stocks) - 1))
+                stocks_layout.addWidget(item)
 
         # Add action buttons
         action_layout = QHBoxLayout()
@@ -922,7 +928,7 @@ class AIAdviceCard(Card):
 
 # Sidebar navigation
 class Sidebar(QFrame):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, user=None):
         super().__init__(parent)
         self.setMinimumWidth(240)
         self.setMaximumWidth(240)
@@ -930,6 +936,8 @@ class Sidebar(QFrame):
             background-color: {ColorPalette.BG_SIDEBAR};
             border-right: 1px solid {ColorPalette.BORDER_DARK};
         """)
+
+        self.user = user
 
         # Layout
         layout = QVBoxLayout(self)
@@ -1012,17 +1020,20 @@ class Sidebar(QFrame):
         # User profile at bottom
         profile_layout = QHBoxLayout()
 
+        user_name = self.user.get('username', 'Guest User') if self.user else 'Guest User'
+        user_email = self.user.get('email', '') if self.user else ''
+
         # Avatar
-        avatar = AvatarWidget("John Doe", size=36)
+        avatar = AvatarWidget(user_name, size=36)
 
         # User info
         user_layout = QVBoxLayout()
         user_layout.setSpacing(2)
 
-        user_name = QLabel("John Doe")
+        user_name = QLabel(user_name)
         user_name.setStyleSheet(f"color: {ColorPalette.TEXT_PRIMARY}; font-weight: bold; background: transparent;")
 
-        user_email = QLabel("john.doe@example.com")
+        user_email = QLabel(user_email)
         user_email.setStyleSheet(f"color: {ColorPalette.TEXT_SECONDARY}; font-size: 11px; background: transparent;")
 
         user_layout.addWidget(user_name)
@@ -1094,8 +1105,9 @@ class SearchBar(QLineEdit):
 
 # Responsive header with improved styling
 class Header(QFrame):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, user_name=None):
         super().__init__(parent)
+        self.user_name = user_name or "User"
         self.setMinimumHeight(80)
         self.setStyleSheet("""
             background-color: transparent;
@@ -1114,11 +1126,8 @@ class Header(QFrame):
         title = QLabel("Dashboard")
         title.setStyleSheet(GlobalStyle.HEADER_STYLE)
 
-        welcome_message = QLabel("Welcome back, John")
-        welcome_message.setStyleSheet(f"color: {ColorPalette.TEXT_SECONDARY}; font-size: 14px;")
 
         title_layout.addWidget(title)
-        title_layout.addWidget(welcome_message)
 
         # Search bar - will adjust width based on available space
         search = SearchBar()
@@ -1307,7 +1316,7 @@ class TransactionItem(QFrame):
 
 # Improved responsive dashboard layout
 class DashboardPage(QWidget):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, user=None, user_stocks=None, user_transactions=None):
         super().__init__(parent)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
@@ -1316,8 +1325,14 @@ class DashboardPage(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(20)
 
+        self.user = user
+        self.user_stocks = user_stocks
+        self.user_transactions = user_transactions
+
+        user_name = self.user.get('username', 'User').split()[0] if self.user else 'User'
+
         # Header with welcome message
-        header = Header()
+        header = Header(user_name=user_name)
         layout.addWidget(header)
 
         # Scrollable content area for responsiveness
@@ -1360,12 +1375,30 @@ class DashboardPage(QWidget):
         section_layout.setContentsMargins(0, 0, 0, 0)
         section_layout.setSpacing(20)
 
-        # Portfolio summary card - reduced emphasis
+        portfolio_value = "$0.00"
+        portfolio_change = "0.0%"
+
+        if self.user_stocks:
+            # Calculate portfolio value
+            try:
+                total_value = sum(float(stock.get('price', 0)) * float(stock.get('amount', 0)) 
+                                for stock in self.user_stocks)
+                portfolio_value = f"${total_value:,.2f}"
+                
+                # Calculate change (this is a simplified example)
+                if 'change' in self.user_stocks[0]:
+                    avg_change = sum(float(stock.get('change', 0)) for stock in self.user_stocks) / len(self.user_stocks)
+                    portfolio_change = f"{avg_change:+.1f}%" if avg_change != 0 else "0.0%"
+            except (ValueError, TypeError):
+                # Handle conversion errors
+                pass
+        
         self.portfolio_card = PortfolioSummaryCard(
             title="Portfolio Value",
-            balance="$1,234,567",
-            change="+4.5%"
+            balance=portfolio_value,
+            change=portfolio_change
         )
+        
         # Reduce the minimum height and make it less dominant
         self.portfolio_card.setMinimumHeight(200)  # Reduced from previous height
         self.portfolio_card.setMinimumWidth(200)  # Reduced width
@@ -1395,34 +1428,39 @@ class DashboardPage(QWidget):
         section_layout.setSpacing(20)
 
         # Owned stocks widget - reduced size
-        self.owned_stocks = OwnedStocksWidget()
+        self.owned_stocks = OwnedStocksWidget(stocks=self.user_stocks)
         self.owned_stocks.setMinimumHeight(350)
 
-        # Recent activity card - similar sizing
+        # Recent activity card
         self.recent_activity = Card("Recent Activity")
-        self.recent_activity.setMinimumHeight(350)
 
-        # Add content to recent activity
         recent_layout = QVBoxLayout()
         recent_layout.setContentsMargins(20, 20, 20, 20)
         recent_layout.setSpacing(10)
 
-        # Add transaction items
-        transactions = [
-            {"type": "buy", "name": "Apple Inc.", "shares": 10, "price": "1,734.50", "date": "Today, 10:30 AM"},
-            {"type": "sell", "name": "Tesla Inc", "shares": 5, "price": "1,193.95", "date": "Yesterday, 3:45 PM"},
-            {"type": "buy", "name": "Microsoft Corp", "shares": 8, "price": "2,596.96", "date": "Feb 25, 2025"}
-        ]
-
-        # Create transaction items with a more flexible approach
+        # Create transaction items
         transaction_container = QWidget()
         transaction_layout = QVBoxLayout(transaction_container)
         transaction_layout.setContentsMargins(0, 0, 0, 0)
         transaction_layout.setSpacing(0)
 
-        for i, transaction in enumerate(transactions):
-            item = TransactionItem(transaction, is_last=(i == len(transactions) - 1))
-            transaction_layout.addWidget(item)
+        if not self.user_transactions:
+            # Show empty state
+            empty_label = QLabel("No recent transactions")
+            empty_label.setStyleSheet(f"""
+                color: {ColorPalette.TEXT_SECONDARY};
+                font-size: 14px;
+                text-align: center;
+                padding: 30px;
+            """)
+            empty_label.setAlignment(Qt.AlignCenter)
+            transaction_layout.addWidget(empty_label)
+        else:
+            # Show actual transactions (limited to most recent 3)
+            recent_transactions = self.user_transactions[:3]
+            for i, transaction in enumerate(recent_transactions):
+                item = TransactionItem(transaction, is_last=(i == len(recent_transactions) - 1))
+                transaction_layout.addWidget(item)
 
         # Add spacer to push transactions to the top if fewer than max
         transaction_layout.addStretch(1)
@@ -1524,11 +1562,17 @@ class DashboardPage(QWidget):
 
 # Responsive main application window
 class MainWindow(QWidget):
-    def __init__(self, user_email=None):
+    def __init__(self,user=None, user_stocks=None, user_transactions=None):
         super().__init__()
         self.setWindowTitle("StockMaster Pro")
         self.setMinimumSize(900, 650)  # Reduced minimum size
-        print("User email:", user_email)
+        print("user" + str(user))
+        print("user_stocks" + str(user_stocks))
+        print("user_transactions" + str(user_transactions))
+
+        self.user = user
+        self.user_stocks = user_stocks
+        self.user_transactions = user_transactions
 
 
         # Track sidebar state for narrow screens
@@ -1589,7 +1633,7 @@ class MainWindow(QWidget):
         self.main_layout.setSpacing(0)
 
         # Sidebar
-        self.sidebar = Sidebar()
+        self.sidebar = Sidebar(user=self.user)
         self.main_layout.addWidget(self.sidebar)
 
         self._connect_sidebar_buttons()
@@ -1617,7 +1661,7 @@ class MainWindow(QWidget):
         self.mobile_header.setVisible(False)  # Initially hidden
 
         # Dashboard page
-        self.dashboard = DashboardPage()
+        self.dashboard = DashboardPage(user=self.user, user_stocks=self.user_stocks, user_transactions=self.user_transactions)
         self.content_layout.addWidget(self.dashboard)
 
         self.main_layout.addWidget(self.content_area)

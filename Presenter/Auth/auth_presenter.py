@@ -82,8 +82,14 @@ class AuthPresenter:
         # Update UI based on result
         if success:
             # Keep showing loading while transitioning to home screen
+            user_info = self.model.get_user_info(text)
+            user_stocks = self.model.get_user_stocks(text)
+            user_transactions = self.model.get_user_transactions(text)
+            print("User info:", user_info)
+            print("User stocks:", user_stocks)
+            print("User transactions:", user_transactions)
             self.view.loading_overlay.message_label.setText("Loading your dashboard...")
-            QTimer.singleShot(1000, lambda: self.view.navigate_to_home(email))
+            QTimer.singleShot(1000, lambda: self.view.navigate_to_home(user_info, user_stocks, user_transactions))
         else:
             # Stop loading and show error
             self.view.loading_overlay.stop()
@@ -111,9 +117,15 @@ class AuthPresenter:
 
         # Update UI based on result
         if success:
+            user_info = self.model.get_user_info(text)
+            user_stocks = []
+            user_transactions = []
+            print("User info:", user_info)
+            print("User stocks:", user_stocks)
+            print("User transactions:", user_transactions)
             # Keep showing loading while transitioning to home screen
             self.view.loading_overlay.message_label.setText("Setting up your account...")
-            QTimer.singleShot(1000, lambda: self.view.navigate_to_home(email))
+            QTimer.singleShot(1000, lambda: self.view.navigate_to_home(user_info, user_stocks, user_transactions))
         else:
             # Stop loading and show error
             self.view.loading_overlay.stop()
@@ -146,15 +158,19 @@ class AuthPresenter:
         success, message, user_data = self.model.login_with_google(id_token)
         
         if success:
-            # Get email from user data or use a default
-            email = user_data.get("email", "Google User")
-            print("Google login successful for:", email)
+            user_info = self.model.get_user_info(user_data)
+            user_stocks = self.model.get_user_stocks(user_data)
+            user_transactions = self.model.get_user_transactions(user_data)
+            print("User info:", user_info)
+            print("User stocks:", user_stocks)
+            print("User transactions:", user_transactions)
+
             
             # Update loading message for transition
             self.view.loading_overlay.message_label.setText("Loading your dashboard...")
             
             # Use timer to allow the UI to update before navigation
-            QTimer.singleShot(800, lambda: self.view.navigate_to_home(email))
+            QTimer.singleShot(800, lambda: self.view.navigate_to_home(user_info, user_stocks, user_transactions))
         else:
             # Stop loading and show error
             self.view.loading_overlay.stop()

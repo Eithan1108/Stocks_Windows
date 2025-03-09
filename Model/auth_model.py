@@ -18,8 +18,6 @@ class AuthModel:
         self.api_base_url = "http://localhost:5000/api/user"
     
     def validate_login(self, email, password):
-        print("Validating login___________")
-        print("Auth details: ", email, password)
         if not email or '@' not in email:
             return False, "email", "Invalid email address"
         try:
@@ -33,7 +31,9 @@ class AuthModel:
 
             # Check API response (add proper status code handling)
             if response.status_code == 200:
-                return True, "Login successful", ""
+                firebase_id = response.json()["firebaseUserId"]
+                print("Firebase ID:", firebase_id)
+                return True, "Login successful", firebase_id
             else:
                 print("Invalid credentials")
                 return False, "both", "Wrong email or password"
@@ -49,8 +49,6 @@ class AuthModel:
     
     def validate_signup(self, name, email, password, confirm_password, terms_accepted):
         """Validate signup information"""
-        print("Validating signup___________")
-        print("Signup details: ", name, email, password, confirm_password, terms_accepted)
         if not name:
             return False, "name", "Name is required"
         if not email or '@' not in email:
@@ -77,11 +75,10 @@ class AuthModel:
                 }
             )
 
-            print("Response status:", response.status_code)
-            print("Response content:", response.text)
-
             if response.status_code == 200:
-                return True, "Signup successful", ""
+                firebase_id = response.json()["userId"]
+                print("Firebase ID:", firebase_id)
+                return True, "Signup successful", firebase_id
             else:
                 return False, "both", response.text
             
@@ -108,13 +105,11 @@ class AuthModel:
                 f"{self.api_base_url}/login-google",
                 json={"idToken": id_token}
             )
-            
-            print("Google login response:", response.status_code)
-            print("Response content:", response.text)
-            
+                        
             if response.status_code == 200:
-                user_data = response.json()
-                return True, "Google login successful", user_data
+                firebase_id = response.json()["firebaseUserId"]
+                print("Firebase ID:", firebase_id)
+                return True, "Google login successful", firebase_id
             else:
                 error_message = response.text
                 return False, "Google authentication failed", error_message
@@ -134,3 +129,43 @@ class AuthModel:
         
         # In a real app, you would send a password reset email here
         return True, "Password reset link sent to your email"
+    
+
+    def get_user_info(self, user_id):
+        """Get user information from the API"""
+        try:
+            response = requests.get(f"{self.api_base_url}/{user_id}")
+            if response.status_code == 200:
+                user_data = response.json()
+                return user_data
+            else:
+                return None
+        except Exception as e:
+            print(f"API request error: {e}")
+            return None
+        
+    def get_user_stocks(self, user_id):
+        """Get user's stock portfolio from the API"""
+        try:
+            response = requests.get(f"{self.api_base_url}/{user_id}/stocks")
+            if response.status_code == 200:
+                stocks_data = response.json()
+                return stocks_data
+            else:
+                return None
+        except Exception as e:
+            print(f"API request error: {e}")
+            return None
+        
+    def get_user_transactions(self, user_id):
+        """Get user's transaction history from the API"""
+        try:
+            response = requests.get(f"{self.api_base_url}/{user_id}/transactions")
+            if response.status_code == 200:
+                transactions_data = response.json()
+                return transactions_data
+            else:
+                return None
+        except Exception as e:
+            print(f"API request error: {e}")
+            return None

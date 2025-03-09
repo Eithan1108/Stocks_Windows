@@ -835,12 +835,12 @@ class LoginWindow(QWidget):
         self._reset_input_style(page, "email_input")
         self._reset_input_style(page, "password_input")
 
-    def navigate_to_home(self, email):
+    def navigate_to_home(self, user, user_stocks, user_transactions):
         """Navigate to the home screen with the user's email"""
         from View.home_page import MainWindow
         
         # Create the home window (don't show yet)
-        self.home_window = MainWindow(user_email=email)
+        self.home_window = MainWindow(user, user_stocks, user_transactions)
         
         # If loading overlay is active, update message
         if self.loading_overlay and self.loading_overlay.isVisible():
@@ -962,12 +962,12 @@ class MainWindow(QWidget):
         layout.addWidget(welcome_label)
 
     # Add this method to LoginWindow class
-    def navigate_to_home(self, email):
+    def navigate_to_home(self, user, user_stocks, user_transactions):
         """Navigate to the home screen with the user's email"""
         from View.home_page import MainWindow
         
         # Create and show the home window
-        self.home_window = MainWindow(user_email=email)
+        self.home_window = MainWindow(user, user_stocks, user_transactions)
         self.home_window.show()
         
         # Close the login window
