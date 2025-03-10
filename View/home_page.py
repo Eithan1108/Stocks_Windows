@@ -14,6 +14,7 @@ from PySide6.QtCore import (Qt, QSize, QRect, QTimer, QPointF, QEvent, QPoint, Q
                             QPropertyAnimation, Signal, QUrl, QMargins)
 from PySide6.QtSvg import QSvgRenderer
 from View.ai_advisor_window import AIAdvisorWindow
+from View.stock_search_window import StockSearchWindow
 from View.shared_components import ColorPalette, GlobalStyle, AvatarWidget
 from View.protofilio_view import PortfolioPage
 from View.transaction_view import TransactionsPage
@@ -22,6 +23,7 @@ from PySide6.QtCore import (Qt, QSize, QRect, QTimer, QPointF, QEvent, QPoint, Q
                             QPropertyAnimation, Signal, QUrl, QMargins)
 from PySide6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest
 from PySide6.QtSvg import QSvgRenderer
+
 
 
 
@@ -1003,6 +1005,7 @@ class Sidebar(QFrame):
         self.portfolio_btn = SidebarButton("Icons/icons8-portofolio-file-50.png", "Portfolio")
         self.transactions_btn = SidebarButton("Icons/icons8-transactions-50.png", "Transactions")
         self.ai_chat = SidebarButton("Icons/icons8-ai-50 (1).png", "AI Advisor")
+        self.all_stocks = SidebarButton("Icons/icons8-invest-50.png", "All Stocks")
         self.settings_btn = SidebarButton("Icons/icons8-settings-50.png", "Settings")
 
         # Add buttons to layout
@@ -1010,6 +1013,7 @@ class Sidebar(QFrame):
         layout.addWidget(self.portfolio_btn)
         layout.addWidget(self.transactions_btn)
         layout.addWidget(self.ai_chat)
+        layout.addWidget(self.all_stocks)
         layout.addSpacing(20)
 
         # Add a separator
@@ -1995,6 +1999,23 @@ class MainWindow(QWidget):
         except Exception as e:
             print(f"Error in _safe_reset_layout: {e}")
 
+    def create_stock_search_window(self):
+        """Create and connect stock search components"""
+        from Model.Stocks.stocks_model import StocksModel
+        from View.stock_search_window import StockSearchWindow
+        from Presenter.Stocks.stocks_presenter import StocksPresenter
+        
+        # Create components
+        model = StocksModel()
+        view = StockSearchWindow()
+        
+        # Create presenter and pass view and model
+        # The presenter connects to UI elements in its constructor
+        presenter = StocksPresenter(view, model)
+
+        view.presenter = presenter
+        
+        return view
 
     def _connect_sidebar_buttons(self):
         """Connect sidebar buttons to their actions"""
@@ -2003,9 +2024,20 @@ class MainWindow(QWidget):
         self.sidebar.portfolio_btn.clicked.connect(self._open_portfolio)
         self.sidebar.transactions_btn.clicked.connect(self._open_transactions)
         self.sidebar.profile_btn.clicked.connect(self._open_profile)
+        self.sidebar.all_stocks.clicked.connect(self._open_stock_page)
 
         # Connect other buttons as needed if you want
 
+    def _open_stock_page(self):
+        print("Open stock page")
+        """Open a stock page for the selected stock"""
+        # Store a reference to prevent garbage collection
+        stock_window = self.create_stock_search_window()
+        stock_window.show()
+        
+        # Store reference to prevent garbage collection
+        self.stock_window = stock_window
+        
     def _open_ai_advisor(self):
         """Open the AI Advisor window"""
         # Store a reference to prevent garbage collection
