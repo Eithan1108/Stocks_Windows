@@ -68,9 +68,14 @@ class StocksPresenter:
             low_price = stock_data.get("lowPrice", 0)
             prev_close = stock_data.get("previousClose", 0)
             change_percent = stock_data.get("changePercent", 0)
+            company_name = stock_data.get("name", "")
+            volume = stock_data.get("volume", 0)
+            yearLow = stock_data.get("yearLow", 0)
+            yearHigh = stock_data.get("yearHigh", 0)
+            pe = stock_data.get("pe", 0)
+            eps = stock_data.get("eps", 0)
+            dividend = stock_data.get("dividend", 0)
             
-            # Create volume with comma formatting (if available, otherwise default)
-            volume = "10,500,000"  # Default value
             
             # Format market cap 
             market_cap = "$198.5B"  # Default value
@@ -78,7 +83,7 @@ class StocksPresenter:
             # Format stock data for the view
             formatted_stock = {
                 "symbol": symbol,
-                "name": self.get_company_name(symbol),  # You might need a mapping of symbols to company names
+                "name": company_name,
                 "price": round(current_price, 2),
                 "change": round(change_percent, 2),
                 "open": round(open_price, 2),
@@ -86,30 +91,15 @@ class StocksPresenter:
                 "volume": volume,
                 "dayLow": round(low_price, 2),
                 "dayHigh": round(high_price, 2),
-                "yearLow": round(low_price * 0.8, 2),  # Example - should come from API
-                "yearHigh": round(high_price * 1.2, 2),  # Example - should come from API
+                "yearLow": yearLow,
+                "yearHigh": yearHigh,
                 "marketCap": market_cap,
-                "pe": "32.5",  # Example - should come from API
-                "eps": "7.35",  # Example - should come from API
-                "dividend": "0.52"  # Example - should come from API
+                "pe": pe,
+                "eps": eps,
+                "dividend": dividend
             }
             
             formatted_stocks.append(formatted_stock)
             
         return formatted_stocks
     
-    def get_company_name(self, symbol):
-        """Map stock symbol to company name"""
-        # This is a simple mapping - in a real application, this would come from the API or a database
-        company_names = {
-            "AAPL": "Apple Inc.",
-            "MSFT": "Microsoft Corporation",
-            "AMZN": "Amazon.com, Inc.",
-            "GOOGL": "Alphabet Inc.",
-            "META": "Meta Platforms, Inc.",
-            "TSLA": "Tesla, Inc.",
-            "NFLX": "Netflix, Inc.",
-            "NVDA": "NVIDIA Corporation"
-        }
-        
-        return company_names.get(symbol, f"{symbol} Stock")
