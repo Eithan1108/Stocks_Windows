@@ -2364,6 +2364,18 @@ class MainWindow(QWidget):
         presenter = ProfilePresenter(view, model)
         view.presenter = presenter
         return view
+    
+
+    def create_protofilio_page(self, user, user_stocks, stocks_the_user_has, balance, firebaseUserId):
+        from View.protofilio_view import PortfolioPage
+        from Model.Protofilio.protofilio_model import PortfolioModel
+        from Presenter.Protofilio.protofilio_presenter import PortfolioPresenter
+
+        model = PortfolioModel()
+        view = PortfolioPage(user, user_stocks, stocks_the_user_has, balance, firebaseUserId)
+        presenter = PortfolioPresenter(view, model)
+        view.presenter = presenter
+        return view
 
     def _connect_sidebar_buttons(self):
         """Connect sidebar buttons to their actions"""
@@ -2392,14 +2404,28 @@ class MainWindow(QWidget):
         self.ai_window = AIAdvisorWindow()
         self.ai_window.show()
     def _open_portfolio(self):
-        """Open the Portfolio window"""
+        """Open the Portfolio window with real data"""
         # Store a reference to prevent garbage collection
-        self.portfolio_window = PortfolioPage()
-        self.portfolio_window.show()
+        portfolio_window = self.create_protofilio_page(
+            user=self.user, 
+            user_stocks=self.user_stocks, 
+            stocks_the_user_has=self.stocks_the_user_has,
+            balance=self.balance,
+            firebaseUserId=self.firebaseUserId
+        )
+        portfolio_window.show()
+        self.portfolio_window = portfolio_window
+
+
     def _open_transactions(self):
         """Open the Transactions window"""
         # Store a reference to prevent garbage collection
-        self.transactions_window = TransactionsPage()
+        self.transactions_window = TransactionsPage(
+            user=self.user, 
+            user_transactions=self.user_transactions, 
+            stocks_the_user_has=self.stocks_the_user_has,
+            balance=self.balance
+        )
         self.transactions_window.show()
     def _open_profile(self):
         """Open the Profile window"""

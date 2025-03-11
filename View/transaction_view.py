@@ -17,10 +17,15 @@ from View.shared_components import ColorPalette, GlobalStyle, AvatarWidget
 
 
 class TransactionsPage(QWidget):
-    """Transactions history page with table that matches the app's style"""
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, user=None, user_transactions=None, stocks_the_user_has=None, balance=None):
         super().__init__(parent)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        
+        # Store user data
+        self.user = user
+        self.user_transactions = user_transactions or []
+        self.stocks_the_user_has = stocks_the_user_has or {}
+        self.balance = balance
         
         # Set the same background color as main window
         self.setStyleSheet(f"background-color: {ColorPalette.BG_DARK};")
@@ -64,8 +69,8 @@ class TransactionsPage(QWidget):
         self.scroll_area.setWidget(self.content_widget)
         layout.addWidget(self.scroll_area)
         
-        # Generate sample transaction data
-        self._generate_sample_transactions()
+        # Generate transaction data or use provided data
+        self._generate_transactions()
         
         # Install event filter for responsive design
         self.installEventFilter(self)
@@ -97,10 +102,15 @@ class TransactionsPage(QWidget):
         metrics_layout = QHBoxLayout()
         metrics_layout.setSpacing(20)
         
+        # Calculate metrics dynamically
+        total_transactions = len(self.user_transactions)
+        total_deposits = sum(1 for tx in self.user_transactions if tx['transactionType'].lower() == 'deposit')
+        total_withdrawals = sum(1 for tx in self.user_transactions if tx['transactionType'].lower() == 'withdrawal')
+        
         metrics = [
-            {"label": "Total Transactions", "value": "254"},
-            {"label": "Buying Power", "value": "$45,678.90"},
-            {"label": "Pending Orders", "value": "3"}
+            {"label": "Total Transactions", "value": str(total_transactions)},
+            {"label": "Buying Power", "value": f"${self.balance:,.2f}" if self.balance is not None else "N/A"},
+            {"label": "Pending Orders", "value": str(total_withdrawals)}
         ]
         
         for metric in metrics:
@@ -127,20 +137,7 @@ class TransactionsPage(QWidget):
         # Action buttons - same styling as main window
         action_layout = QHBoxLayout()
         action_layout.setSpacing(10)
-        
-        buy_btn = QPushButton("Buy Stock")
-        buy_btn.setStyleSheet(GlobalStyle.PRIMARY_BUTTON)
-        buy_btn.setCursor(Qt.PointingHandCursor)
-        buy_btn.setFixedHeight(40)
-        
-        sell_btn = QPushButton("Sell Stock")
-        sell_btn.setStyleSheet(GlobalStyle.SECONDARY_BUTTON)
-        sell_btn.setCursor(Qt.PointingHandCursor)
-        sell_btn.setFixedHeight(40)
-        
-        action_layout.addWidget(buy_btn)
-        action_layout.addWidget(sell_btn)
-        
+
         # Combine layouts
         header_layout.addLayout(title_layout)
         header_layout.addStretch(1)
@@ -148,7 +145,118 @@ class TransactionsPage(QWidget):
         header_layout.addLayout(action_layout)
         
         return header
-    
+
+    def convert_transaction_data(self):
+        """Convert raw transaction data to UI format"""
+        ui_transactions = []
+        
+        try:
+            for tx in self.user_transactions:
+                # Parse date - Fix for handling the specific format
+                try:
+                    date_str = tx['date']
+                    
+                    # Handle microseconds properly by making sure it has exactly 6 digits
+                    if '.' in date_str:
+                        base, ms_part = date_str.split('.')
+                        # Remove any trailing 'Z' or timezone info first
+                        ms_part = ms_part.rstrip('Z').split('+')[0].split('-')[0]
+                        # Pad or truncate microseconds to exactly 6 digits
+                        ms_part = ms_part.ljust(6, '0')[:6]
+                        date_str = f"{base}.{ms_part}"
+                    
+                    # Use strptime instead of fromisoformat for more flexible parsing
+                    tx_date = datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%S.%f")
+                    formatted_date = tx_date.strftime("%b %d, %Y")
+                except Exception as date_err:
+                    print(f"Error parsing date: {date_err}")
+                    formatted_date = tx['date']
+                
+                # Get full stock name if available
+                symbol = tx.get('stockSymbol', '')
+                name = symbol
+                if symbol and self.stocks_the_user_has and symbol in self.stocks_the_user_has:
+                    name = self.stocks_the_user_has[symbol].get('name', symbol)
+                
+                ui_transactions.append({
+                    "date": formatted_date,
+                    "type": tx['transactionType'].lower(),
+                    "stock": symbol,
+                    "shares": tx.get('quantity'),
+                    "price": tx.get('price'),
+                    "total": tx.get('price', 0) * tx.get('quantity', 1) if tx.get('quantity') and tx.get('price') else tx.get('amount', 0),
+                    "status": "Completed"  # Assuming all transactions are completed
+                })
+        except Exception as e:
+            print(f"Error converting transaction data: {e}")
+        
+        return ui_transactions
+    def _generate_transactions(self):
+        """Generate transaction table using converted transaction data"""
+        # Convert raw transaction data to UI format
+        transactions = self.convert_transaction_data()
+        
+        # Update table with converted transactions
+        self.transaction_table.setRowCount(len(transactions))
+        
+        for row, transaction in enumerate(transactions):
+            # Date
+            date_item = QTableWidgetItem(transaction["date"])
+            date_item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+            
+            # Type with colored styling
+            type_item = QTableWidgetItem()
+            type_item.setText(transaction["type"].capitalize())
+            type_item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+            
+            # Set color based on transaction type
+            if transaction["type"] == "buy":
+                type_item.setForeground(QColor(ColorPalette.ACCENT_SUCCESS))
+            elif transaction["type"] == "sell":
+                type_item.setForeground(QColor(ColorPalette.ACCENT_DANGER))
+            elif transaction["type"] == "dividend":
+                type_item.setForeground(QColor(ColorPalette.ACCENT_INFO))
+            elif transaction["type"] == "deposit":
+                type_item.setForeground(QColor(ColorPalette.ACCENT_PRIMARY))
+            
+            # Stock
+            stock_item = QTableWidgetItem(transaction["stock"])
+            stock_item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+            
+            # Shares/Price - combined column
+            shares_price_text = ""
+            if transaction["shares"] is not None and transaction["price"] is not None:
+                shares_price_text = f"{transaction['shares']} shares @ ${transaction['price']:.2f}"
+            shares_price_item = QTableWidgetItem(shares_price_text)
+            shares_price_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            
+            # Total with dollar sign
+            total_text = f"${transaction['total']:.2f}"
+            if transaction["type"] == "withdrawal":
+                total_text = f"-{total_text}"  # Add negative sign for withdrawals
+                
+            total_item = QTableWidgetItem(total_text)
+            total_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            
+            # Status
+            status_item = QTableWidgetItem(transaction["status"])
+            status_item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+            
+            # Style status based on value
+            if transaction["status"] == "Completed":
+                status_item.setForeground(QColor(ColorPalette.ACCENT_SUCCESS))
+            
+            # Set items in the table
+            self.transaction_table.setItem(row, 0, date_item)
+            self.transaction_table.setItem(row, 1, type_item)
+            self.transaction_table.setItem(row, 2, stock_item)
+            self.transaction_table.setItem(row, 3, shares_price_item)
+            self.transaction_table.setItem(row, 4, total_item)
+            self.transaction_table.setItem(row, 5, status_item)
+            
+            # Set row height
+            self.transaction_table.setRowHeight(row, 50)
+
     def _setup_transaction_history_section(self):
         """Create transaction history section with table matching app style"""
         # Create card with same styling as main window
