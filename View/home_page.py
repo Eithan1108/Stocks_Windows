@@ -164,14 +164,16 @@ class Card(QFrame):
         self.setMinimumHeight(min_height)
 
 # Improved portfolio summary card with better space utilization
-class PortfolioSummaryCard(Card):
-    def __init__(self, title="Portfolio Value", balance="$1,234,567.89", change="+4.5%", parent=None):
-        super().__init__(title="", parent=parent)
-        self.balance = balance
-        self.change = change
-        self.trend_data = self._generate_trend_data()
-
-        # Get gradient colors for orange theme
+class PortfolioSummaryCard(QFrame):
+    def __init__(self, user_stocks=None, stocks_data=None, parent=None):
+        super().__init__(parent)
+        self.user_stocks = user_stocks or []
+        self.stocks_data = stocks_data or {}
+        
+        # Calculate portfolio values
+        self.calculate_portfolio_data()
+        
+        # Get gradient colors for theme
         self.color_start = "#F59E0B"  # Orange start
         self.color_end = "#D97706"    # Darker orange end
 
@@ -189,10 +191,91 @@ class PortfolioSummaryCard(Card):
         # Connect resize event handlers
         self.installEventFilter(self)
 
+    def calculate_portfolio_data(self):
+        """Calculate portfolio value, change, and historical trend"""
+        self.total_value = 0
+        self.total_previous_value = 0
+        self.weighted_change_pct = 0
+        
+        # Calculate current and previous portfolio values
+        if self.user_stocks and self.stocks_data:
+            for stock in self.user_stocks:
+                symbol = stock.get('stockSymbol')
+                quantity = float(stock.get('quantity', 0))
+                
+                if symbol in self.stocks_data:
+                    # Current value
+                    current_price = self.stocks_data[symbol].get('currentPrice', 0)
+                    self.total_value += current_price * quantity
+                    
+                    # Previous value (for change calculation)
+                    previous_price = self.stocks_data[symbol].get('previousClose', 0)
+                    self.total_previous_value += previous_price * quantity
+        
+        # Calculate percentage change
+        if self.total_previous_value > 0:
+            self.weighted_change_pct = ((self.total_value - self.total_previous_value) / 
+                                        self.total_previous_value) * 100
+        
+        # Format values for display
+        self.balance = f"${self.total_value:,.2f}"
+        self.change = f"{self.weighted_change_pct:+.2f}%" if self.weighted_change_pct != 0 else "0.00%"
+        
+        # Generate trend data based on stock changes
+        self.trend_data = self._generate_trend_data()
+
+    def _generate_trend_data(self):
+        """Generate trend data for the chart based on actual stock data"""
+        points = []
+        
+        # If we have historical data, we could use it here
+        # For now, we'll generate semi-realistic data based on the current change
+        
+        num_points = 40
+        base = 100
+        
+        # Use the actual portfolio change to influence the trend
+        change_factor = self.weighted_change_pct / 100
+        
+        # Generate points with a trend that ends with our actual change percentage
+        import random
+        
+        # Create a more natural curve that ends with our current change
+        total_change = change_factor * base
+        avg_step = total_change / num_points
+        
+        # Start with base value
+        current = base
+        points.append(current)
+        
+        # Generate intermediate points with controlled randomness
+        for i in range(1, num_points):
+            # More randomness in the middle, more directed at the end
+            progress = i / num_points
+            randomness = 1 - (progress * 0.7)  # Reduce randomness as we approach the end
+            
+            # Step size combines the trend and randomness
+            step = avg_step + (random.uniform(-2, 2) * randomness)
+            
+            # Adjust to ensure we end up close to the target change
+            remaining_steps = num_points - i
+            remaining_change = (base + total_change) - current
+            correction = (remaining_change / remaining_steps) * 0.3
+            
+            # Apply step with correction
+            current += step + correction
+            
+            # Ensure we don't go too low
+            current = max(current, base * 0.5)
+            
+            points.append(current)
+            
+        return points
+
     def _setup_ui(self):
         """Setup the card UI with better space utilization"""
         # Main layout to organize content
-        main_layout = QVBoxLayout()
+        main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(20, 20, 20, 20)
         main_layout.setSpacing(10)
 
@@ -203,6 +286,15 @@ class PortfolioSummaryCard(Card):
         # Value/Change section (left)
         value_section = QVBoxLayout()
         value_section.setSpacing(5)
+
+        # Title label
+        title_label = QLabel("Portfolio Value")
+        title_label.setStyleSheet("""
+            color: white;
+            font-size: 14px;
+            background: transparent;
+        """)
+        value_section.addWidget(title_label)
 
         # Balance value - large and prominent
         balance_label = QLabel(self.balance)
@@ -215,18 +307,15 @@ class PortfolioSummaryCard(Card):
 
         # Change percentage with background
         change_str = self.change
-        if not change_str.startswith("+") and not change_str.startswith("-"):
-            if float(change_str.rstrip("%")) > 0:
-                change_str = f"+{change_str}"
-
         is_positive = not change_str.startswith("-")
+        bg_opacity = "0.2" if is_positive else "0.15"
 
         change_label = QLabel(change_str)
         change_label.setStyleSheet(f"""
             color: white;
             font-size: 16px;
             font-weight: bold;
-            background: rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, {bg_opacity});
             border-radius: 4px;
             padding: 4px 10px;
         """)
@@ -251,28 +340,8 @@ class PortfolioSummaryCard(Card):
         self.graph_label.setStyleSheet("background: transparent;")
         main_layout.addWidget(self.graph_label, 1)  # 1 = stretch factor
 
-        # Set the layout
-        self.layout.addLayout(main_layout)
-
         # Initial graph update
         self._update_graph()
-
-    def _generate_trend_data(self):
-        """Generate sample trend data for the chart"""
-        import random
-        points = []
-        num_points = 40  # More points for a smoother curve
-
-        # Generate a more realistic looking stock chart
-        base = 100
-        for i in range(num_points):
-            # Add some randomness with an overall upward trend
-            change = random.uniform(-3, 5)
-            if i > 0:
-                base = max(base + change, 50)  # Ensure value doesn't go too low
-            points.append(base)
-
-        return points
 
     def eventFilter(self, obj, event):
         """Handle resize events"""
@@ -338,7 +407,8 @@ class PortfolioSummaryCard(Card):
                     fill_path.lineTo(0, height)
                     fill_path.closeSubpath()
 
-                    # Draw fill with gradient
+                    # Draw fill with gradient - adjust opacity based on change
+                    is_positive = self.weighted_change_pct >= 0
                     gradient = QLinearGradient(0, 0, 0, height)
                     gradient.setColorAt(0, QColor(255, 255, 255, 80))
                     gradient.setColorAt(1, QColor(255, 255, 255, 0))
@@ -365,6 +435,25 @@ class PortfolioSummaryCard(Card):
             self.graph_label.setPixmap(pixmap)
         finally:
             self._is_updating_graph = False
+            
+    def update_data(self, user_stocks=None, stocks_data=None):
+        """Update the card with new data"""
+        if user_stocks is not None:
+            self.user_stocks = user_stocks
+        if stocks_data is not None:
+            self.stocks_data = stocks_data
+            
+        # Recalculate portfolio data
+        self.calculate_portfolio_data()
+        
+        # Update UI elements
+        if hasattr(self, 'balance_label'):
+            self.balance_label.setText(self.balance)
+        if hasattr(self, 'change_label'):
+            self.change_label.setText(self.change)
+            
+        # Update graph
+        self._update_graph()
 
 
 # Improved stock item with responsive design
@@ -399,8 +488,10 @@ class StockItem(QFrame):
     def _setup_ui(self):
         # Icon with company initials
         initials = self._get_stock_initials(self.stock_data["name"])
+        #Pick random color from color palette
+        random_color = random.choice(ColorPalette.CHART_COLORS)
         color = self._get_stock_color(self.stock_data["name"])
-        self.icon = AvatarWidget(initials, size=38, background_color=color)  # Slightly smaller
+        self.icon = AvatarWidget(initials, size=38, background_color=random_color)  # Slightly smaller
         self.layout.addWidget(self.icon)
 
         # Stock info (name and shares)
@@ -499,10 +590,12 @@ class StockItem(QFrame):
 
 
 # Optimized owned stocks widget with better space utilization
+# Optimized owned stocks widget with better space utilization and dynamic height
 class OwnedStocksWidget(Card):
-    def __init__(self, parent=None, stocks=None):
+    def __init__(self, parent=None, stocks=None, stocks_the_user_has=None):
         super().__init__(title="", parent=parent)
         self.stocks = stocks or []
+        self.stocks_the_user_has = stocks_the_user_has or []
 
         # Main layout
         main_layout = QVBoxLayout()
@@ -573,6 +666,12 @@ class OwnedStocksWidget(Card):
         stocks_layout.setContentsMargins(0, 0, 0, 0)
         stocks_layout.setSpacing(0)
         
+        # Calculate height based on number of stocks
+        # Each stock item is 65px high, minimum height for empty state
+        min_content_height = 100  # Minimum height for empty state
+        stock_item_height = 65    # Height of each stock item
+        action_height = 66        # Height of action buttons section (15px padding top/bottom + 36px button height)
+        
         if not self.stocks:
             # Show empty state
             empty_label = QLabel("You don't have any stocks yet")
@@ -584,11 +683,15 @@ class OwnedStocksWidget(Card):
             """)
             empty_label.setAlignment(Qt.AlignCenter)
             stocks_layout.addWidget(empty_label)
+            content_height = min_content_height
         else:
             # Show actual stocks
             for i, stock in enumerate(self.stocks):
                 item = StockItem(stock, is_last=(i == len(self.stocks) - 1))
                 stocks_layout.addWidget(item)
+            
+            # Calculate content height based on number of stocks
+            content_height = len(self.stocks) * stock_item_height
 
         # Add action buttons
         action_layout = QHBoxLayout()
@@ -612,7 +715,14 @@ class OwnedStocksWidget(Card):
 
         # Set the stocks container as the scroll area widget
         stocks_scroll.setWidget(stocks_container)
-        stocks_scroll.setMinimumHeight(350)  # Set minimum height
+        
+        # Calculate total content height: content + action buttons + some buffer
+        total_height = content_height + action_height + 20
+        
+        # Set a reasonable height - not too large when we have few stocks
+        ideal_height = min(350, max(180, total_height))
+        stocks_scroll.setMinimumHeight(ideal_height)
+        stocks_scroll.setMaximumHeight(ideal_height)
 
         main_layout.addWidget(stocks_scroll)
 
@@ -621,29 +731,7 @@ class OwnedStocksWidget(Card):
         summary_layout.setContentsMargins(20, 0, 20, 20)  # Bottom padding
         summary_layout.setSpacing(20)
 
-        # Stats matching the screenshot
-        stats = [
-            {"label": "Total Value", "value": "$26,489.32"},
-            {"label": "Daily Change", "value": "+$312.45 (1.2%)"},
-            {"label": "YTD Return", "value": "+18.7%"}
-        ]
-
-        for stat in stats:
-            stat_widget = QWidget()
-            stat_layout = QVBoxLayout(stat_widget)
-            stat_layout.setContentsMargins(0, 0, 0, 0)
-            stat_layout.setSpacing(3)
-
-            label = QLabel(stat["label"])
-            label.setStyleSheet(f"color: {ColorPalette.TEXT_SECONDARY}; font-size: 12px;")
-
-            value = QLabel(stat["value"])
-            value.setStyleSheet(f"color: {ColorPalette.TEXT_PRIMARY}; font-size: 15px; font-weight: bold;")
-
-            stat_layout.addWidget(label)
-            stat_layout.addWidget(value)
-
-            summary_layout.addWidget(stat_widget)
+        
 
         # Add flexible spacer at the end
         summary_layout.addStretch()
@@ -652,6 +740,38 @@ class OwnedStocksWidget(Card):
 
         # Set layout to the card
         self.layout.addLayout(main_layout)
+
+    def update_stocks(self, new_stocks):
+        """Update the widget with new stock data"""
+        self.stocks = new_stocks
+        
+        # Clear existing stock items
+        for i in reversed(range(self.layout.count())):
+            widget = self.layout.itemAt(i).widget()
+            if isinstance(widget, StockItem):
+                self.layout.removeWidget(widget)
+                widget.deleteLater()
+        
+        # Add new stock items
+        if not self.stocks:
+            # Show empty state
+            empty_label = QLabel("You don't have any stocks yet")
+            empty_label.setStyleSheet(f"""
+                color: {ColorPalette.TEXT_SECONDARY};
+                font-size: 14px;
+                text-align: center;
+                padding: 30px;
+            """)
+            empty_label.setAlignment(Qt.AlignCenter)
+            self.layout.addWidget(empty_label)
+        else:
+            # Show actual stocks
+            for i, stock in enumerate(self.stocks):
+                item = StockItem(stock, is_last=(i == len(self.stocks) - 1))
+                self.layout.addWidget(item)
+
+
+
 
 # Advanced stock table with sorting
 class StockTable(QTableWidget):
@@ -1390,10 +1510,13 @@ class TransactionItem(QFrame):
         layout.setContentsMargins(10, 10, 10, 10)
         layout.setSpacing(15)
 
-        # Icon based on transaction type with improved design
+        # Icon based on stock initials
+        stocks_initials = "".join([word[0] for word in transaction_data["name"].split()])
+
         icon_text = "B" if transaction_data["type"] == "buy" else "S"
-        icon_color = ColorPalette.ACCENT_SUCCESS if transaction_data["type"] == "buy" else ColorPalette.ACCENT_DANGER
-        icon = AvatarWidget(icon_text, size=40, background_color=icon_color)
+        # Random color from palette
+        random_color = random.choice(ColorPalette.CHART_COLORS)
+        icon = AvatarWidget(stocks_initials, size=40, background_color=random_color)
 
         # Name and date info
         info_layout = QVBoxLayout()
@@ -1443,7 +1566,7 @@ class TransactionItem(QFrame):
 
 # Improved responsive dashboard layout
 class DashboardPage(QWidget):
-    def __init__(self, parent=None, user=None, user_stocks=None, user_transactions=None):
+    def __init__(self, parent=None, user=None, user_stocks=None, user_transactions=None, stocks_the_user_has=None, firebaseUserId=None):
         super().__init__(parent)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
@@ -1455,6 +1578,9 @@ class DashboardPage(QWidget):
         self.user = user
         self.user_stocks = user_stocks
         self.user_transactions = user_transactions
+        self.stocks_the_user_has = stocks_the_user_has
+        self.firebaseUserId = firebaseUserId
+
 
         user_name = self.user.get('username', 'User').split()[0] if self.user else 'User'
 
@@ -1502,35 +1628,16 @@ class DashboardPage(QWidget):
         section_layout.setContentsMargins(0, 0, 0, 0)
         section_layout.setSpacing(20)
 
-        portfolio_value = "$0.00"
-        portfolio_change = "0.0%"
-
-        if self.user_stocks:
-            # Calculate portfolio value
-            try:
-                total_value = sum(float(stock.get('price', 0)) * float(stock.get('amount', 0)) 
-                                for stock in self.user_stocks)
-                portfolio_value = f"${total_value:,.2f}"
-                
-                # Calculate change (this is a simplified example)
-                if 'change' in self.user_stocks[0]:
-                    avg_change = sum(float(stock.get('change', 0)) for stock in self.user_stocks) / len(self.user_stocks)
-                    portfolio_change = f"{avg_change:+.1f}%" if avg_change != 0 else "0.0%"
-            except (ValueError, TypeError):
-                # Handle conversion errors
-                pass
-        
+        # Create the portfolio card with actual data
         self.portfolio_card = PortfolioSummaryCard(
-            title="Portfolio Value",
-            balance=portfolio_value,
-            change=portfolio_change
+            user_stocks=self.user_stocks,
+            stocks_data=self.stocks_the_user_has
         )
         
         # Reduce the minimum height and make it less dominant
         self.portfolio_card.setMinimumHeight(200)  # Reduced from previous height
         self.portfolio_card.setMinimumWidth(200)  # Reduced width
         self.portfolio_card.setMaximumHeight(450)  # Limit height to avoid stretching
-
 
         # AI Advice card with adjusted size
         self.ai_advice = AIAdviceCard()
@@ -1547,6 +1654,71 @@ class DashboardPage(QWidget):
         self.portfolio_section = section
         self.portfolio_section_layout = section_layout
 
+    def convert_transaction_data(self, api_transactions):
+        """Convert API transaction format to UI format"""
+        import datetime
+        
+        ui_transactions = []
+        for tx in api_transactions:
+            try:
+                # Parse date - Fix for handling the specific format
+                date_str = tx['date']
+                
+                # Handle microseconds properly by making sure it has exactly 6 digits
+                if '.' in date_str:
+                    base, ms_part = date_str.split('.')
+                    # Remove any trailing 'Z' or timezone info first
+                    ms_part = ms_part.rstrip('Z').split('+')[0].split('-')[0]
+                    # Pad or truncate microseconds to exactly 6 digits
+                    ms_part = ms_part.ljust(6, '0')[:6]
+                    date_str = f"{base}.{ms_part}"
+                
+                # Use strptime instead of fromisoformat for more flexible parsing
+                tx_date = datetime.datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%S.%f")
+                formatted_date = tx_date.strftime("%b %d, %Y")
+                
+                # Get full name if available
+                symbol = tx['stockSymbol']
+                name = symbol
+                if hasattr(self, 'stocks_the_user_has') and self.stocks_the_user_has and symbol in self.stocks_the_user_has:
+                    name = self.stocks_the_user_has[symbol].get('name', symbol)
+                
+                ui_transactions.append({
+                    "name": name,
+                    "type": tx['transactionType'].lower(),
+                    "date": formatted_date,
+                    "price": f"{tx['price']:.2f}",
+                    "shares": str(tx['quantity'])
+                })
+            except Exception as e:
+                print(f"Error processing transaction: {e}")
+                print(f"Transaction data: {tx}")
+        
+        return ui_transactions
+
+    def convert_stock_data(self, user_stocks, stocks_details):
+        """Convert API stock format to UI format with aggregated quantities"""
+        from collections import defaultdict
+        
+        stock_quantities = defaultdict(int)
+        for stock in user_stocks:
+            symbol = stock['stockSymbol']
+            stock_quantities[symbol] += stock['quantity']
+        
+        ui_stocks = []
+        for symbol, total_quantity in stock_quantities.items():
+            if symbol in stocks_details:
+                details = stocks_details[symbol]
+                
+                ui_stocks.append({
+                    "name": details['name'],
+                    "amount": str(total_quantity),  # Total quantity across all transactions
+                    "price": f"{details['currentPrice']:.2f}",
+                    "change": details['changePercent']
+                })
+        
+        return ui_stocks
+
     def _setup_portfolio_details_section(self):
         """Setup the portfolio details section with owned stocks and recent activity"""
         section = QWidget()
@@ -1555,7 +1727,8 @@ class DashboardPage(QWidget):
         section_layout.setSpacing(20)
 
         # Owned stocks widget - reduced size
-        self.owned_stocks = OwnedStocksWidget(stocks=self.user_stocks)
+        ui_stocks = self.convert_stock_data(self.user_stocks, self.stocks_the_user_has)
+        self.owned_stocks = OwnedStocksWidget(stocks=ui_stocks, stocks_the_user_has=self.stocks_the_user_has)
         self.owned_stocks.setMinimumHeight(350)
 
         # Recent activity card
@@ -1584,9 +1757,14 @@ class DashboardPage(QWidget):
             transaction_layout.addWidget(empty_label)
         else:
             # Show actual transactions (limited to most recent 3)
-            recent_transactions = self.user_transactions[:3]
-            for i, transaction in enumerate(recent_transactions):
-                item = TransactionItem(transaction, is_last=(i == len(recent_transactions) - 1))
+            # Get 4 latest transactions
+            recent_transactions = self.user_transactions[-4:]
+            
+            # Convert all transactions at once
+            ui_transactions = self.convert_transaction_data(recent_transactions)
+            
+            for i, tx_data in enumerate(ui_transactions):
+                item = TransactionItem(tx_data, is_last=(i == len(ui_transactions) - 1))
                 transaction_layout.addWidget(item)
 
         # Add spacer to push transactions to the top if fewer than max
@@ -1686,20 +1864,156 @@ class DashboardPage(QWidget):
         """Safely reset the adjusting flag after a delay"""
         self._is_adjusting = False
 
+    def update_dashboard_data(self, user_stocks=None, user_transactions=None, stocks_the_user_has=None):
+        """Update dashboard with new data without recreating the entire UI"""
+        # Update stored data
+        if user_stocks is not None:
+            self.user_stocks = user_stocks
+        if user_transactions is not None:
+            self.user_transactions = user_transactions
+        if stocks_the_user_has is not None:
+            self.stocks_the_user_has = stocks_the_user_has
+        
+        # Update portfolio card
+        if hasattr(self, 'portfolio_card'):
+            self.portfolio_card.update_data(
+                user_stocks=self.user_stocks,
+                stocks_data=self.stocks_the_user_has
+            )
+        
+        # Update owned stocks widget
+        if hasattr(self, 'owned_stocks'):
+            # Convert data to UI format
+            ui_stocks = self.convert_stock_data(self.user_stocks, self.stocks_the_user_has)
+            self._update_owned_stocks_widget(ui_stocks)
+        
+        # Update recent transactions
+        if hasattr(self, 'recent_activity'):
+            self._update_recent_transactions()
+    
+    def _update_owned_stocks_widget(self, ui_stocks):
+        """Update the existing OwnedStocksWidget with new stocks"""
+        if not hasattr(self, 'owned_stocks'):
+            print("Warning: owned_stocks widget not found")
+            return
+        
+        # Find the stocks container within the OwnedStocksWidget
+        stocks_scroll = self.owned_stocks.findChild(QScrollArea)
+        if not stocks_scroll:
+            print("Warning: Could not find stocks scroll area")
+            return
+        
+        stocks_container = stocks_scroll.widget()
+        if not stocks_container:
+            print("Warning: Could not find stocks container")
+            return
+        
+        stocks_layout = stocks_container.layout()
+        if not stocks_layout:
+            print("Warning: Stocks container has no layout")
+            return
+        
+        # Clear existing stock items
+        for i in reversed(range(stocks_layout.count())):
+            widget = stocks_layout.itemAt(i).widget()
+            if isinstance(widget, StockItem):
+                stocks_layout.removeWidget(widget)
+                widget.deleteLater()
+        
+        # Add new stock items
+        if not ui_stocks:
+            # Show empty state
+            empty_label = QLabel("You don't have any stocks yet")
+            empty_label.setStyleSheet(f"""
+                color: {ColorPalette.TEXT_SECONDARY};
+                font-size: 14px;
+                text-align: center;
+                padding: 30px;
+            """)
+            empty_label.setAlignment(Qt.AlignCenter)
+            stocks_layout.addWidget(empty_label)
+        else:
+            # Show actual stocks
+            for i, stock in enumerate(ui_stocks):
+                item = StockItem(stock, is_last=(i == len(ui_stocks) - 1))
+                stocks_layout.addWidget(item)
+        
+        # Add spacer to push items to top
+        stocks_layout.addStretch(1)
+    
+    def _update_recent_transactions(self):
+        """Update the recent transactions widget with new data"""
+        
+        # Find the transaction container within the recent activity card
+        transaction_scroll = self.recent_activity.findChild(QScrollArea)
+        
+        if not transaction_scroll:
+            print("Warning: Could not find scroll area in recent activity")
+            return
+        
+        transaction_container = transaction_scroll.widget()
+        if not transaction_container:
+            print("Warning: Could not find transaction container")
+            return
+        
+        # Get the layout of the transaction container
+        transaction_layout = transaction_container.layout()
+        if not transaction_layout:
+            print("Warning: Transaction container has no layout")
+            return
+        
+        # Clear existing items
+        for i in reversed(range(transaction_layout.count())):
+            widget = transaction_layout.itemAt(i).widget()
+            if isinstance(widget, TransactionItem) or isinstance(widget, QLabel):
+                transaction_layout.removeWidget(widget)
+                widget.deleteLater()
+        
+        # Add new transaction items
+        if not self.user_transactions:
+            # Show empty state
+            empty_label = QLabel("No recent transactions")
+            empty_label.setStyleSheet(f"""
+                color: {ColorPalette.TEXT_SECONDARY};
+                font-size: 14px;
+                text-align: center;
+                padding: 30px;
+            """)
+            empty_label.setAlignment(Qt.AlignCenter)
+            transaction_layout.addWidget(empty_label)
+        else:
+            # Show actual transactions (limited to most recent 4)
+            recent_transactions = self.user_transactions[-4:]
+            
+            # Convert all transactions at once
+            ui_transactions = self.convert_transaction_data(recent_transactions)
+            
+            for i, tx_data in enumerate(ui_transactions):
+                item = TransactionItem(tx_data, is_last=(i == len(ui_transactions) - 1))
+                transaction_layout.addWidget(item)
+        
+        # Add spacer to push transactions to the top if fewer than max
+        transaction_layout.addStretch(1)
+
 
 # Responsive main application window
 class MainWindow(QWidget):
-    def __init__(self,user=None, user_stocks=None, user_transactions=None):
+    def __init__(self, user=None, user_stocks=None, user_transactions=None, firebaseUserId=None, balance=None, stocks_the_user_has=None):
         super().__init__()
         self.setWindowTitle("StockMaster Pro")
         self.setMinimumSize(900, 650)  # Reduced minimum size
         print("user" + str(user))
         print("user_stocks" + str(user_stocks))
         print("user_transactions" + str(user_transactions))
-
+        print("User balance" + str(balance))
+        
         self.user = user
         self.user_stocks = user_stocks
         self.user_transactions = user_transactions
+        self.firebaseUserId = firebaseUserId
+        self.balance = balance
+        self.stocks_the_user_has = stocks_the_user_has
+        print("Stocks the user has: ", self.stocks_the_user_has)
 
 
         # Track sidebar state for narrow screens
@@ -1787,11 +2101,31 @@ class MainWindow(QWidget):
         self.content_layout.addWidget(self.mobile_header)
         self.mobile_header.setVisible(False)  # Initially hidden
 
-        # Dashboard page
-        self.dashboard = DashboardPage(user=self.user, user_stocks=self.user_stocks, user_transactions=self.user_transactions)
+        self.dashboard = DashboardPage(
+            user=self.user, 
+            user_stocks=self.user_stocks, 
+            user_transactions=self.user_transactions, 
+            stocks_the_user_has=self.stocks_the_user_has,
+            firebaseUserId=self.firebaseUserId
+        )
+
+        # Create model and presenter for dashboard
+        from Model.Dashboard.dashboard_model import DashboardModel
+        from Presenter.Dashboard.dashboard_presenter import DashboardPresenter
+
+        dashboard_model = DashboardModel()
+        self.dashboard_presenter = DashboardPresenter(self.dashboard, dashboard_model)
+
+        # Load initial data through the presenter
+        self.dashboard_presenter.load_initial_data()
+
+
+
+        # Add to layout
         self.content_layout.addWidget(self.dashboard)
 
         self.main_layout.addWidget(self.content_area)
+
 
         # Connect to resize event to handle responsive layouts
         self.installEventFilter(self)
@@ -2007,7 +2341,9 @@ class MainWindow(QWidget):
         
         # Create components
         model = StocksModel()
-        view = StockSearchWindow()
+        print("firebaseUserId" + str(self.firebaseUserId))
+        f = self.firebaseUserId
+        view = StockSearchWindow(str(f))
         
         # Create presenter and pass view and model
         # The presenter connects to UI elements in its constructor
@@ -2015,6 +2351,18 @@ class MainWindow(QWidget):
 
         view.presenter = presenter
         
+        return view
+    
+    def create_profile_page(self):
+        from View.profile_page import ProfilePage
+        from Model.Profile.profile_model import ProfileModel
+        from Presenter.Profile.profile_presenter import ProfilePresenter
+
+        model = ProfileModel()
+
+        view = ProfilePage(self.user, self.balance, self.firebaseUserId)
+        presenter = ProfilePresenter(view, model)
+        view.presenter = presenter
         return view
 
     def _connect_sidebar_buttons(self):
@@ -2055,9 +2403,10 @@ class MainWindow(QWidget):
         self.transactions_window.show()
     def _open_profile(self):
         """Open the Profile window"""
-        # Store a reference to prevent garbage collection
-        self.profile_window = ProfilePage()
-        self.profile_window.show()
+        profile_window = self.create_profile_page()
+        profile_window.show()
+        self.profile_window = profile_window
+
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

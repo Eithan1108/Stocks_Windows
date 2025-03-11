@@ -25,3 +25,28 @@ class StocksModel:
         except Exception as e:
             print(f"Exception during API request: {str(e)}")
             return None
+        
+
+    def buy_stock(self, symbol, quantity, firebaseId):
+        """Buy a stock based on the provided symbol and quantity"""
+        print(f"Buying stock: {symbol}, Quantity: {quantity}")
+        
+        try:
+            # Make a post request to the API with the stock name and quantity
+            response = requests.post("http://localhost:5000/api/stocks/buy", json={
+                "firebaseUserId": firebaseId,
+                "stockSymbol": symbol,
+                "quantity": int(quantity)
+                })
+            
+            if response.status_code == 200:
+                data = response.json()
+                print(f"API response: {json.dumps(data, indent=2)}")
+                return data
+            else:
+                print(f"Error buying stock: {response.json()}")
+                return None
+                
+        except Exception as e:
+            print(f"Exception during API request: {str(e)}")
+            return None

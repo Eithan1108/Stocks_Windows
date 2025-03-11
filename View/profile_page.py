@@ -1,18 +1,83 @@
 import math
 from datetime import datetime
 from PySide6.QtWidgets import (QApplication, QWidget, QVBoxLayout, QPushButton, QFrame, QHBoxLayout,
-                               QLabel, QGridLayout, QScrollArea, QSizePolicy, QGraphicsDropShadowEffect,
-                               QLineEdit, QTextEdit, QFormLayout, QStackedWidget, QComboBox, QFileDialog)
-from PySide6.QtGui import (QColor, QPalette, QIcon, QPixmap, QPainter, QLinearGradient, QBrush, QPen,
-                           QFont, QPainterPath, QCursor, QRadialGradient, QFontMetrics)
-from PySide6.QtCore import (Qt, QSize, QRect, QTimer, QPointF, QEvent, QPoint, QEasingCurve,
-                            QPropertyAnimation, Signal)
+                               QLabel, QSizePolicy, QGraphicsDropShadowEffect, QLineEdit, QFormLayout,
+                               QScrollArea)
+from PySide6.QtGui import QColor, QFont, QPainter, QBrush, QPen
+from PySide6.QtCore import Qt, QEvent, QSize, QTimer
 
-# Importing shared components from your existing codebase
-# You'll need to adjust these imports based on your actual file structure
-from View.shared_components import ColorPalette, GlobalStyle, AvatarWidget
+# Importing existing color palette and styles
+from PySide6.QtWidgets import (QApplication, QWidget, QVBoxLayout, QPushButton, QFrame, QHBoxLayout,
+                               QLabel, QSizePolicy, QGraphicsDropShadowEffect, QLineEdit, QFormLayout)
+from PySide6.QtGui import QColor, QFont
+from PySide6.QtCore import Qt
 
-class ProfileHeader(QFrame):
+# Define color palette and style constants for dark theme
+class ColorPalette:
+    BG_DARK = "#151825"         # Dark blue background
+    BG_CARD = "#1E2235"         # Slightly lighter blue for cards
+    PRIMARY = "#3D7FEE"         # Bright blue for primary elements
+    PRIMARY_DARK = "#3270DE"    # Slightly darker blue for hover states
+    TEXT_PRIMARY = "#FFFFFF"    # White text
+    TEXT_SECONDARY = "#9A9CB0"  # Muted blue-gray for secondary text
+    BORDER_DARK = "#252A3D"     # Dark border color
+
+class GlobalStyle:
+    CARD_STYLE = f"""
+        background-color: {ColorPalette.BG_CARD};
+        border-radius: 8px;
+        border: 1px solid {ColorPalette.BORDER_DARK};
+    """
+    HEADER_STYLE = f"""
+        color: {ColorPalette.TEXT_PRIMARY};
+        font-size: 24px;
+        font-weight: bold;
+    """
+    SUBHEADER_STYLE = f"""
+        color: {ColorPalette.TEXT_PRIMARY};
+        font-size: 18px;
+        font-weight: bold;
+        border: none;
+    """
+    PRIMARY_BUTTON = f"""
+        QPushButton {{
+            background-color: {ColorPalette.PRIMARY};
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 8px 16px;
+            font-size: 14px;
+            font-weight: bold;
+        }}
+        QPushButton:hover {{
+            background-color: {ColorPalette.PRIMARY_DARK};
+        }}
+    """
+    SECONDARY_BUTTON = f"""
+        QPushButton {{
+            background-color: {ColorPalette.BG_CARD};
+            color: {ColorPalette.TEXT_PRIMARY};
+            border: 1px solid {ColorPalette.BORDER_DARK};
+            border-radius: 4px;
+            padding: 8px 16px;
+            font-size: 14px;
+        }}
+        QPushButton:hover {{
+            background-color: #252A3D;
+        }}
+    """
+    INPUT_STYLE = f"""
+        QLineEdit {{
+            background-color: {ColorPalette.BG_DARK};
+            color: {ColorPalette.TEXT_PRIMARY};
+            border: 1px solid {ColorPalette.BORDER_DARK};
+            border-radius: 4px;
+            padding: 8px;
+            font-size: 14px;
+        }}
+    """
+
+class AccountHeader(QFrame):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setMinimumHeight(80)
@@ -30,11 +95,11 @@ class ProfileHeader(QFrame):
         title_layout = QVBoxLayout()
         title_layout.setSpacing(4)
 
-        title = QLabel("Profile")
+        title = QLabel("Account")
         title.setStyleSheet(GlobalStyle.HEADER_STYLE)
 
-        subtitle = QLabel("Manage your personal information")
-        subtitle.setStyleSheet(f"color: {ColorPalette.TEXT_SECONDARY}; font-size: 14px;")
+        subtitle = QLabel("Manage your account balance")
+        subtitle.setStyleSheet(f"color: {ColorPalette.TEXT_SECONDARY}; font-size: 14px; border: none;")
 
         title_layout.addWidget(title)
         title_layout.addWidget(subtitle)
@@ -43,348 +108,200 @@ class ProfileHeader(QFrame):
         layout.addLayout(title_layout)
         layout.addStretch(1)
 
-        # Add edit profile button
-        edit_btn = QPushButton("Edit Profile")
+        # Add edit account button
+        edit_btn = QPushButton("Account Settings")
         edit_btn.setCursor(Qt.PointingHandCursor)
         edit_btn.setStyleSheet(GlobalStyle.PRIMARY_BUTTON)
         edit_btn.setFixedHeight(40)
         edit_btn.setMinimumWidth(120)
         layout.addWidget(edit_btn)
 
-class ProfileCard(QFrame):
+class AccountInfoCard(QFrame):
     def __init__(self, parent=None):
         super().__init__(parent)
         
         # Setup styling
         self.setStyleSheet(GlobalStyle.CARD_STYLE)
-        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.setMinimumHeight(150)
 
         # Add shadow effect
         shadow = QGraphicsDropShadowEffect()
-        shadow.setBlurRadius(20)
-        shadow.setColor(QColor(0, 0, 0, 40))  # More subtle shadow
-        shadow.setOffset(0, 4)
+        shadow.setBlurRadius(15)
+        shadow.setColor(QColor(0, 0, 0, 80))
+        shadow.setOffset(0, 3)
         self.setGraphicsEffect(shadow)
 
         # Layout
-        self.layout = QVBoxLayout(self)
-        self.layout.setContentsMargins(20, 20, 20, 20)
-        self.layout.setSpacing(15)
-
-        # Setup content
-        self._setup_ui()
-
-    def _setup_ui(self):
-        # Profile info layout with avatar and details side by side
-        profile_layout = QHBoxLayout()
-        profile_layout.setSpacing(25)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(15)
         
-        # Avatar - large size for profile page
-        self.avatar = AvatarWidget("John Doe", size=120)
-        self.avatar.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        # Title
+        title = QLabel("Account Information")
+        title.setStyleSheet(GlobalStyle.SUBHEADER_STYLE)
+        layout.addWidget(title)
         
-        # Change profile photo button
-        change_photo_btn = QPushButton("Change Photo")
-        change_photo_btn.setCursor(Qt.PointingHandCursor)
-        change_photo_btn.setStyleSheet(GlobalStyle.SECONDARY_BUTTON)
-        change_photo_btn.setFixedWidth(120)
+        # Account details
+        info_layout = QFormLayout()
+        info_layout.setSpacing(10)
+        info_layout.setHorizontalSpacing(40)
         
-        # Avatar column with button
-        avatar_column = QVBoxLayout()
-        avatar_column.setAlignment(Qt.AlignCenter)
-        avatar_column.addWidget(self.avatar)
-        avatar_column.addSpacing(10)
-        avatar_column.addWidget(change_photo_btn)
-        avatar_column.addStretch()
+        # Create labels with proper styling
+        account_name_label = QLabel("User Name:")
+        account_name_label.setStyleSheet(f"color: {ColorPalette.TEXT_SECONDARY}; font-size: 14px; border: none;")
+        self.account_name = QLabel("Loading...")
+        self.account_name.setStyleSheet(f"color: {ColorPalette.TEXT_PRIMARY}; font-size: 15px; font-weight: bold; border: none;")
         
-        # Profile details in a form layout
-        details_layout = QFormLayout()
-        details_layout.setSpacing(15)
-        details_layout.setContentsMargins(0, 10, 0, 10)
+        account_id_label = QLabel("Email:")
+        account_id_label.setStyleSheet(f"color: {ColorPalette.TEXT_SECONDARY}; font-size: 14px; border: none;")
+        self.account_id = QLabel("Loading...")
+        self.account_id.setStyleSheet(f"color: {ColorPalette.TEXT_PRIMARY}; font-size: 15px; font-weight: bold; border: none;")
         
-        # Create styled labels
-        name_title = QLabel("Full Name")
-        name_title.setStyleSheet(f"color: {ColorPalette.TEXT_SECONDARY}; font-size: 12px;")
-        name_value = QLabel("John Doe")
-        name_value.setStyleSheet(f"color: {ColorPalette.TEXT_PRIMARY}; font-size: 15px; font-weight: bold;")
-        
-        email_title = QLabel("Email")
-        email_title.setStyleSheet(f"color: {ColorPalette.TEXT_SECONDARY}; font-size: 12px;")
-        email_value = QLabel("john.doe@example.com")
-        email_value.setStyleSheet(f"color: {ColorPalette.TEXT_PRIMARY}; font-size: 15px; font-weight: bold;")
-        
-        phone_title = QLabel("Phone")
-        phone_title.setStyleSheet(f"color: {ColorPalette.TEXT_SECONDARY}; font-size: 12px;")
-        phone_value = QLabel("+1 (555) 123-4567")
-        phone_value.setStyleSheet(f"color: {ColorPalette.TEXT_PRIMARY}; font-size: 15px; font-weight: bold;")
-        
-        location_title = QLabel("Location")
-        location_title.setStyleSheet(f"color: {ColorPalette.TEXT_SECONDARY}; font-size: 12px;")
-        location_value = QLabel("New York, USA")
-        location_value.setStyleSheet(f"color: {ColorPalette.TEXT_PRIMARY}; font-size: 15px; font-weight: bold;")
-        
-        joined_title = QLabel("Member Since")
-        joined_title.setStyleSheet(f"color: {ColorPalette.TEXT_SECONDARY}; font-size: 12px;")
-        joined_value = QLabel("March 2022")
-        joined_value.setStyleSheet(f"color: {ColorPalette.TEXT_PRIMARY}; font-size: 15px; font-weight: bold;")
+        account_type_label = QLabel("Account Type:")
+        account_type_label.setStyleSheet(f"color: {ColorPalette.TEXT_SECONDARY}; font-size: 14px; border: none;")
+        self.account_type = QLabel("Loading...")
+        self.account_type.setStyleSheet(f"color: {ColorPalette.TEXT_PRIMARY}; font-size: 15px; font-weight: bold; border: none;")
         
         # Add to form layout
-        details_layout.addRow(name_title, name_value)
-        details_layout.addRow(email_title, email_value)
-        details_layout.addRow(phone_title, phone_value)
-        details_layout.addRow(location_title, location_value)
-        details_layout.addRow(joined_title, joined_value)
+        info_layout.addRow(account_name_label, self.account_name)
+        info_layout.addRow(account_id_label, self.account_id)
+        info_layout.addRow(account_type_label, self.account_type)
         
-        # Add avatar and details to profile layout
-        profile_layout.addLayout(avatar_column)
-        profile_layout.addLayout(details_layout)
-        profile_layout.addStretch(1)
-        
-        # Add profile layout to main layout
-        self.layout.addLayout(profile_layout)
+        layout.addLayout(info_layout)
 
-class PreferencesCard(QFrame):
+    def update_info(self, name, id, account_type):
+        """Update account information"""
+        self.account_name.setText(name)
+        self.account_id.setText(id)
+        self.account_type.setText(account_type)
+
+class AccountBalanceCard(QFrame):
     def __init__(self, parent=None):
         super().__init__(parent)
         
         # Setup styling
         self.setStyleSheet(GlobalStyle.CARD_STYLE)
-        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.setMinimumHeight(120)
 
         # Add shadow effect
         shadow = QGraphicsDropShadowEffect()
-        shadow.setBlurRadius(20)
-        shadow.setColor(QColor(0, 0, 0, 40))
-        shadow.setOffset(0, 4)
+        shadow.setBlurRadius(15)
+        shadow.setColor(QColor(0, 0, 0, 80))
+        shadow.setOffset(0, 3)
         self.setGraphicsEffect(shadow)
 
         # Layout
-        self.layout = QVBoxLayout(self)
-        self.layout.setContentsMargins(20, 20, 20, 20)
-        self.layout.setSpacing(15)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 15, 20, 15)
+        layout.setSpacing(5)
+        
+        # Account Balance Label
+        balance_label = QLabel("Account Balance")
+        balance_label.setStyleSheet(f"color: {ColorPalette.TEXT_SECONDARY}; font-size: 14px; border: none;")
+        layout.addWidget(balance_label)
+        
+        # Balance Amount
+        self.balance_amount = QLabel("Loading...")
+        self.balance_amount.setStyleSheet(f"color: {ColorPalette.TEXT_PRIMARY}; font-size: 28px; font-weight: bold; border: none;")
+        layout.addWidget(self.balance_amount)
+        
+        # Last updated
+        self.last_updated = QLabel("Last updated: --")
+        self.last_updated.setStyleSheet(f"color: {ColorPalette.TEXT_SECONDARY}; font-size: 12px; border: none;")
+        layout.addWidget(self.last_updated)
+        
+    def update_balance(self, balance, update_time=None):
+        """Update balance information"""
+        self.balance_amount.setText(balance)
+        
+        if update_time:
+            self.last_updated.setText(f"Last updated: {update_time}")
+        else:
+            # Get current time
+            from datetime import datetime
+            current_time = datetime.now().strftime("%B %d, %Y %I:%M %p")
+            self.last_updated.setText(f"Last updated: {current_time}")
 
-        # Title
-        title_label = QLabel("Preferences")
-        title_label.setStyleSheet(GlobalStyle.SUBHEADER_STYLE)
-        self.layout.addWidget(title_label)
-        
-        # Setup content
-        self._setup_ui()
-
-    def _setup_ui(self):
-        # Grid layout for preferences
-        grid_layout = QGridLayout()
-        grid_layout.setSpacing(20)
-        
-        # Language preference
-        language_layout = QVBoxLayout()
-        language_title = QLabel("Language")
-        language_title.setStyleSheet(f"color: {ColorPalette.TEXT_PRIMARY}; font-weight: bold; font-size: 14px;")
-        
-        language_combo = QComboBox()
-        language_combo.addItems(["English", "Spanish", "French", "German", "Chinese"])
-        language_combo.setStyleSheet(f"""
-            QComboBox {{
-                background-color: {ColorPalette.BG_DARK};
-                color: {ColorPalette.TEXT_PRIMARY};
-                border: none;
-                border-radius: 6px;
-                padding: 8px 12px;
-                min-height: 38px;
-            }}
-            QComboBox::drop-down {{
-                subcontrol-origin: padding;
-                subcontrol-position: top right;
-                width: 20px;
-                border: none;
-            }}
-        """)
-        
-        language_layout.addWidget(language_title)
-        language_layout.addWidget(language_combo)
-        
-        # Theme preference
-        theme_layout = QVBoxLayout()
-        theme_title = QLabel("Theme")
-        theme_title.setStyleSheet(f"color: {ColorPalette.TEXT_PRIMARY}; font-weight: bold; font-size: 14px;")
-        
-        theme_combo = QComboBox()
-        theme_combo.addItems(["Dark Theme", "Light Theme", "System Default"])
-        theme_combo.setStyleSheet(f"""
-            QComboBox {{
-                background-color: {ColorPalette.BG_DARK};
-                color: {ColorPalette.TEXT_PRIMARY};
-                border: none;
-                border-radius: 6px;
-                padding: 8px 12px;
-                min-height: 38px;
-            }}
-            QComboBox::drop-down {{
-                subcontrol-origin: padding;
-                subcontrol-position: top right;
-                width: 20px;
-                border: none;
-            }}
-        """)
-        
-        theme_layout.addWidget(theme_title)
-        theme_layout.addWidget(theme_combo)
-        
-        # Notification settings
-        notif_layout = QVBoxLayout()
-        notif_title = QLabel("Notifications")
-        notif_title.setStyleSheet(f"color: {ColorPalette.TEXT_PRIMARY}; font-weight: bold; font-size: 14px;")
-        
-        notif_combo = QComboBox()
-        notif_combo.addItems(["All Notifications", "Important Only", "None"])
-        notif_combo.setStyleSheet(f"""
-            QComboBox {{
-                background-color: {ColorPalette.BG_DARK};
-                color: {ColorPalette.TEXT_PRIMARY};
-                border: none;
-                border-radius: 6px;
-                padding: 8px 12px;
-                min-height: 38px;
-            }}
-            QComboBox::drop-down {{
-                subcontrol-origin: padding;
-                subcontrol-position: top right;
-                width: 20px;
-                border: none;
-            }}
-        """)
-        
-        notif_layout.addWidget(notif_title)
-        notif_layout.addWidget(notif_combo)
-        
-        # Date format
-        date_layout = QVBoxLayout()
-        date_title = QLabel("Date Format")
-        date_title.setStyleSheet(f"color: {ColorPalette.TEXT_PRIMARY}; font-weight: bold; font-size: 14px;")
-        
-        date_combo = QComboBox()
-        date_combo.addItems(["MM/DD/YYYY", "DD/MM/YYYY", "YYYY-MM-DD"])
-        date_combo.setStyleSheet(f"""
-            QComboBox {{
-                background-color: {ColorPalette.BG_DARK};
-                color: {ColorPalette.TEXT_PRIMARY};
-                border: none;
-                border-radius: 6px;
-                padding: 8px 12px;
-                min-height: 38px;
-            }}
-            QComboBox::drop-down {{
-                subcontrol-origin: padding;
-                subcontrol-position: top right;
-                width: 20px;
-                border: none;
-            }}
-        """)
-        
-        date_layout.addWidget(date_title)
-        date_layout.addWidget(date_combo)
-        
-        # Add layouts to grid
-        grid_layout.addLayout(language_layout, 0, 0)
-        grid_layout.addLayout(theme_layout, 0, 1)
-        grid_layout.addLayout(notif_layout, 1, 0)
-        grid_layout.addLayout(date_layout, 1, 1)
-        
-        # Add grid to main layout
-        self.layout.addLayout(grid_layout)
-        
-        # Add spacer
-        self.layout.addStretch(1)
-        
-        # Save preferences button
-        save_btn = QPushButton("Save Preferences")
-        save_btn.setCursor(Qt.PointingHandCursor)
-        save_btn.setStyleSheet(GlobalStyle.PRIMARY_BUTTON)
-        save_btn.setFixedHeight(40)
-        self.layout.addWidget(save_btn)
-
-class SecurityCard(QFrame):
+class AddMoneyCard(QFrame):
     def __init__(self, parent=None):
         super().__init__(parent)
         
         # Setup styling
         self.setStyleSheet(GlobalStyle.CARD_STYLE)
-        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.setMinimumHeight(200)
 
         # Add shadow effect
         shadow = QGraphicsDropShadowEffect()
-        shadow.setBlurRadius(20)
-        shadow.setColor(QColor(0, 0, 0, 40))
-        shadow.setOffset(0, 4)
+        shadow.setBlurRadius(15)
+        shadow.setColor(QColor(0, 0, 0, 80))
+        shadow.setOffset(0, 3)
         self.setGraphicsEffect(shadow)
 
         # Layout
-        self.layout = QVBoxLayout(self)
-        self.layout.setContentsMargins(20, 20, 20, 20)
-        self.layout.setSpacing(15)
-
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(15)
+        
         # Title
-        title_label = QLabel("Security Settings")
-        title_label.setStyleSheet(GlobalStyle.SUBHEADER_STYLE)
-        self.layout.addWidget(title_label)
+        title = QLabel("Add Money to Account")
+        title.setStyleSheet(GlobalStyle.SUBHEADER_STYLE)
+        layout.addWidget(title)
         
-        # Setup content
-        self._setup_ui()
+        # Form layout for amount input
+        form_layout = QFormLayout()
+        form_layout.setSpacing(10)
+        
+        amount_label = QLabel("Amount ($)")
+        amount_label.setStyleSheet(f"color: {ColorPalette.TEXT_SECONDARY}; font-size: 14px;")
+        
+        self.amount_input = QLineEdit()
+        self.amount_input.setPlaceholderText("Enter amount")
+        self.amount_input.setStyleSheet(GlobalStyle.INPUT_STYLE)
+        self.amount_input.setFixedHeight(40)
+        
+        form_layout.addRow(amount_label, self.amount_input)
+        layout.addLayout(form_layout)
+        
 
-    def _setup_ui(self):
-        # Last login info
-        login_layout = QHBoxLayout()
-        login_icon = QLabel("🔒")
-        login_icon.setFixedSize(24, 24)
-        login_icon.setAlignment(Qt.AlignCenter)
-        login_info = QLabel("Last login: Today, 10:35 AM • New York, USA")
-        login_info.setStyleSheet(f"color: {ColorPalette.TEXT_SECONDARY}; font-size: 13px;")
-        
-        login_layout.addWidget(login_icon)
-        login_layout.addWidget(login_info)
-        login_layout.addStretch()
-        
-        self.layout.addLayout(login_layout)
-        
-        # Separator
-        separator = QFrame()
-        separator.setFrameShape(QFrame.HLine)
-        separator.setStyleSheet(f"background-color: {ColorPalette.BORDER_DARK};")
-        separator.setFixedHeight(1)
-        
-        self.layout.addWidget(separator)
-        
-        # Security options
-        # Password change
-        change_password_btn = QPushButton("Change Password")
-        change_password_btn.setCursor(Qt.PointingHandCursor)
-        change_password_btn.setStyleSheet(GlobalStyle.SECONDARY_BUTTON)
-        change_password_btn.setFixedHeight(40)
-        
-        # 2FA setup
-        twofa_btn = QPushButton("Set Up Two-Factor Authentication")
-        twofa_btn.setCursor(Qt.PointingHandCursor)
-        twofa_btn.setStyleSheet(GlobalStyle.SECONDARY_BUTTON)
-        twofa_btn.setFixedHeight(40)
-        
-        # Device management
-        devices_btn = QPushButton("Manage Connected Devices")
-        devices_btn.setCursor(Qt.PointingHandCursor)
-        devices_btn.setStyleSheet(GlobalStyle.SECONDARY_BUTTON)
-        devices_btn.setFixedHeight(40)
-        
-        # Add buttons to layout with spacing
-        self.layout.addWidget(change_password_btn)
-        self.layout.addWidget(twofa_btn)
-        self.layout.addWidget(devices_btn)
-        
-        self.layout.addStretch(1)
+        # Add money button
+        add_money_btn = QPushButton("Add Money")
+        add_money_btn.setCursor(Qt.PointingHandCursor)
+        add_money_btn.setStyleSheet(GlobalStyle.PRIMARY_BUTTON)
+        add_money_btn.setFixedHeight(40)
+        layout.addWidget(add_money_btn)
+
+        self.add_money_btn = add_money_btn
+
+    def get_add_money_button(self):
+        """
+        Return the add money button
+        """
+        return self.add_money_btn
+    
+    def get_money_amount(self):
+        """
+        Get the amount entered by the user
+        """
+        return self.amount_input.text()
 
 class ProfilePage(QWidget):
-    def __init__(self, parent=None):
+    def __init__(self, user=None, balance=None, firebaseId=None, parent=None):
         super().__init__(parent)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setStyleSheet(f"background-color: {ColorPalette.BG_DARK};")
+        self.setMinimumSize(600, 730)  # Set minimum window size
+        # Set resizing disabled
+        self.setFixedSize(self.size())
+
+        self.user = user
+        self.balance = balance
+        self.firebaseId = firebaseId
+        print("User from profile page:", self.user)
+        print("Balance from profile page:", self.balance)
+        print("Firebase ID from profile page:", self.firebaseId)
         
         # Main layout
         layout = QVBoxLayout(self)
@@ -392,7 +309,7 @@ class ProfilePage(QWidget):
         layout.setSpacing(20)
         
         # Header
-        self.header = ProfileHeader()
+        self.header = AccountHeader()
         layout.addWidget(self.header)
         
         # Scrollable content area for responsiveness
@@ -400,14 +317,27 @@ class ProfilePage(QWidget):
         self.scroll_area.setWidgetResizable(True)
         self.scroll_area.setFrameShape(QFrame.NoFrame)
         self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.scroll_area.setStyleSheet("""
-            QScrollArea {
+        self.scroll_area.setStyleSheet(f"""
+            QScrollArea {{
                 background: transparent;
                 border: none;
-            }
-            QScrollArea > QWidget > QWidget {
+            }}
+            QScrollArea > QWidget > QWidget {{
                 background: transparent;
-            }
+            }}
+            QScrollBar:vertical {{
+                background: {ColorPalette.BG_DARK};
+                width: 10px;
+                margin: 0px;
+            }}
+            QScrollBar::handle:vertical {{
+                background: {ColorPalette.BORDER_DARK};
+                min-height: 20px;
+                border-radius: 5px;
+            }}
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
+                height: 0px;
+            }}
         """)
         
         # Container for all content
@@ -417,44 +347,137 @@ class ProfilePage(QWidget):
         self.content_layout.setContentsMargins(0, 0, 0, 0)
         self.content_layout.setSpacing(20)
         
-        # Profile info card
-        self.profile_card = ProfileCard()
-        self.content_layout.addWidget(self.profile_card)
+        # Account info card
+        self.account_info = AccountInfoCard()
+        self.content_layout.addWidget(self.account_info)
         
-        # Preferences card
-        self.preferences_card = PreferencesCard()
-        self.content_layout.addWidget(self.preferences_card)
+        # Balance card
+        self.balance_card = AccountBalanceCard()
+        self.content_layout.addWidget(self.balance_card)
         
-        # Security card
-        self.security_card = SecurityCard()
-        self.content_layout.addWidget(self.security_card)
+        # Add money card
+        self.add_money_card = AddMoneyCard()
+        self.content_layout.addWidget(self.add_money_card)
+        
+        # Status message (for success/error messages)
+        self.status_label = QLabel("")
+        self.status_label.setAlignment(Qt.AlignCenter)
+        self.status_label.setWordWrap(True)
+        self.status_label.setStyleSheet("color: white; font-weight: bold; padding: 8px;")
+        self.status_label.setVisible(False)  # Initially hidden
+        self.content_layout.addWidget(self.status_label)
         
         # Set the scroll area widget and add to main layout
         self.scroll_area.setWidget(self.content_widget)
         layout.addWidget(self.scroll_area)
         
-        # Install event filter to handle resize events
-        self.installEventFilter(self)
+        # Add stretch to push everything to the top
+        self.content_layout.addStretch(1)
+
+    def set_presenter(self, presenter):
+        """
+        Set the presenter for this view
+        """
+        self.presenter = presenter
+
+    def get_add_money_button(self):
+        """
+        Return the add money button
+        """
+        return self.add_money_card.get_add_money_button()
     
-    def eventFilter(self, obj, event):
-        """Handle resize events to adjust layout responsively"""
-        if obj == self and event.type() == QEvent.Resize:
-            width = self.width()
+    def get_money_amount(self):
+        """
+        Get the amount entered by the user
+        """
+        return self.add_money_card.get_money_amount()
+    
+    def clear_money_input(self):
+        """
+        Clear the money input field
+        """
+        self.add_money_card.amount_input.clear()
+    
+    def update_user_info(self, user_data):
+        """
+        Update the user information displayed in the account info card
+        """
+        if not user_data:
+            return
+        
+        # Get name from user_data
+        display_name = user_data.get('username', 'N/A')
+        user_id = user_data.get('email', 'N/A')
+        account_type = user_data.get('accountType', 'Standard')
+        
+        # Update the account info card
+        self.account_info.update_info(display_name, user_id, account_type)
+        
+        # Update the class variable
+        self.user = user_data
+    
+    def update_balance(self, balance):
+        """
+        Update the balance displayed in the balance card
+        """
+        if balance is None:
+            return
             
-            # For smaller screens, adjust margins
-            if width < 800:
-                self.content_layout.setContentsMargins(0, 0, 0, 0)
-            else:
-                self.content_layout.setContentsMargins(0, 0, 0, 0)
-                
-        return super().eventFilter(obj, event)
+        # Format the balance with commas and 2 decimal places
+        formatted_balance = "${:,.2f}".format(float(balance))
+        
+        # Update the balance card
+        from datetime import datetime
+        current_time = datetime.now().strftime("%B %d, %Y %I:%M %p")
+        self.balance_card.update_balance(formatted_balance, current_time)
+        
+        # Update the class variable
+        self.balance = balance
+    
+    def show_error_message(self, message):
+        """
+        Display an error message to the user
+        """
+        self.status_label.setText(message)
+        self.status_label.setStyleSheet(f"""
+            color: #FF5252;
+            background-color: rgba(255, 82, 82, 0.1);
+            border: 1px solid #FF5252;
+            border-radius: 4px;
+            padding: 8px;
+            font-weight: bold;
+        """)
+        self.status_label.setVisible(True)
+        
+        # Hide the message after 5 seconds
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(5000, lambda: self.status_label.setVisible(False))
+    
+    def show_success_message(self, message):
+        """
+        Display a success message to the user
+        """
+        self.status_label.setText(message)
+        self.status_label.setStyleSheet(f"""
+            color: #4CAF50;
+            background-color: rgba(76, 175, 80, 0.1);
+            border: 1px solid #4CAF50;
+            border-radius: 4px;
+            padding: 8px;
+            font-weight: bold;
+        """)
+        self.status_label.setVisible(True)
+        
+        # Hide the message after 5 seconds
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(5000, lambda: self.status_label.setVisible(False))
 
 # For testing
 if __name__ == "__main__":
     import sys
     app = QApplication(sys.argv)
     window = ProfilePage()
-    window.setWindowTitle("User Profile")
-    window.resize(900, 650)
+    window.setWindowTitle("Account Information")
+    window.resize(600, 650)
     window.show()
     sys.exit(app.exec())

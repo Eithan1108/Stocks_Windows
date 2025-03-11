@@ -1,5 +1,5 @@
 # Presenters/Auth/auth_presenter.py
-from Model.auth_model import AuthModel
+from Model.Auth.auth_model import AuthModel
 from View.auth_page import LoginPage
 from View.home_page import MainWindow
 from PySide6.QtWidgets import QPushButton, QLineEdit  # Change PyQt5 to PySide6
@@ -85,11 +85,18 @@ class AuthPresenter:
             user_info = self.model.get_user_info(text)
             user_stocks = self.model.get_user_stocks(text)
             user_transactions = self.model.get_user_transactions(text)
+            # Extarct user stocks from user_stocks
+            # The user_stocks structure is [{'stockSymbol': 'AAPL', 'quantity': 10}]
+            stocks = []
+            for stock in user_stocks:   
+                stocks.append(stock['stockSymbol'])
+            stocks_user_holds = self.model.get_stocks_user_holds(text, stocks)
             print("User info:", user_info)
             print("User stocks:", user_stocks)
             print("User transactions:", user_transactions)
             self.view.loading_overlay.message_label.setText("Loading your dashboard...")
-            QTimer.singleShot(1000, lambda: self.view.navigate_to_home(user_info, user_stocks, user_transactions))
+            balance = self.get_balance(text)
+            QTimer.singleShot(1000, lambda: self.view.navigate_to_home(user_info, user_stocks, user_transactions, text, balance, stocks_user_holds))
         else:
             # Stop loading and show error
             self.view.loading_overlay.stop()
@@ -120,12 +127,15 @@ class AuthPresenter:
             user_info = self.model.get_user_info(text)
             user_stocks = []
             user_transactions = []
+            stocks_user_holds = []
             print("User info:", user_info)
             print("User stocks:", user_stocks)
             print("User transactions:", user_transactions)
+            
             # Keep showing loading while transitioning to home screen
             self.view.loading_overlay.message_label.setText("Setting up your account...")
-            QTimer.singleShot(1000, lambda: self.view.navigate_to_home(user_info, user_stocks, user_transactions))
+            balance = self.get_balance(text)
+            QTimer.singleShot(1000, lambda: self.view.navigate_to_home(user_info, user_stocks, user_transactions, text, balance, stocks_user_holds))
         else:
             # Stop loading and show error
             self.view.loading_overlay.stop()
@@ -161,16 +171,23 @@ class AuthPresenter:
             user_info = self.model.get_user_info(user_data)
             user_stocks = self.model.get_user_stocks(user_data)
             user_transactions = self.model.get_user_transactions(user_data)
+            stocks = []
+            for stock in user_stocks:   
+                stocks.append(stock['stockSymbol'])
+            stocks_user_holds = self.model.get_stocks_user_holds(user_data, stocks)
+
             print("User info:", user_info)
             print("User stocks:", user_stocks)
             print("User transactions:", user_transactions)
+            print("Stocks user holds from auth presentor:", stocks_user_holds)
 
             
             # Update loading message for transition
             self.view.loading_overlay.message_label.setText("Loading your dashboard...")
             
             # Use timer to allow the UI to update before navigation
-            QTimer.singleShot(800, lambda: self.view.navigate_to_home(user_info, user_stocks, user_transactions))
+            balance = self.get_balance(user_data)
+            QTimer.singleShot(800, lambda: self.view.navigate_to_home(user_info, user_stocks, user_transactions, user_data, balance, stocks_user_holds))
         else:
             # Stop loading and show error
             self.view.loading_overlay.stop()
@@ -193,3 +210,8 @@ class AuthPresenter:
         """Handle forgot password button click"""
         # This will be implemented later
         pass
+
+
+    def get_balance(self, firebaseId):
+        print("Getting balance for user with ID:", firebaseId)
+        return self.model.get_balance(firebaseId)

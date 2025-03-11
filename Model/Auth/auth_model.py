@@ -130,7 +130,6 @@ class AuthModel:
         # In a real app, you would send a password reset email here
         return True, "Password reset link sent to your email"
     
-
     def get_user_info(self, user_id):
         """Get user information from the API"""
         try:
@@ -168,4 +167,41 @@ class AuthModel:
                 return None
         except Exception as e:
             print(f"API request error: {e}")
+            return None
+        
+    def get_balance(self, firebaseId):
+        """Get user's account balance from the API"""
+        print(f"Getting balance for user with ID from model: {firebaseId}")
+        try:
+            response = requests.get("http://localhost:5000/api/user/balance/"+firebaseId)
+            if response.status_code == 200:
+                # Get the balance from {'balance': 0.0}
+                return response.json()["balance"]
+            else:
+                print("Failed to get balance" + response.text)
+                return None
+        except Exception as e:
+            print(f"API request error: {e}")
+            return None
+        
+
+    def get_stocks_user_holds(self, user_id, stocks):
+        """Get user's stock holdings from the API"""
+        print(f"Searching for stock: {stocks}")
+        
+        try:
+            # Make a post request to the API with the stock name
+            
+            response = requests.post("http://localhost:5000/api/stocks/prices", json={"tickers": stocks})
+            
+            if response.status_code == 200:
+                data = response.json()
+                print(f"API response for get_stocks_user_holds in the model: {data}")
+                return data
+            else:
+                print(f"Error fetching stocks: {response.status_code}")
+                return None
+                
+        except Exception as e:
+            print(f"Exception during API request: {str(e)}")
             return None

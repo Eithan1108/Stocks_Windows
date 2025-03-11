@@ -3,7 +3,7 @@ import sys
 from PySide6.QtWidgets import QApplication
 
 # Import MVP components
-from Model.auth_model import AuthModel
+from Model.Auth.auth_model import AuthModel
 from View.auth_page import LoginWindow
 from Presenter.Auth.auth_presenter import AuthPresenter
 from Model.Stocks.stocks_model import StocksModel
