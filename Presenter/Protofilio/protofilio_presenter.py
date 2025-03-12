@@ -1,6 +1,7 @@
 from View.protofilio_view import StocksListWidget  # Replace 'some_module' with the actual module name
 from View.protofilio_view import StockItem
 from View.protofilio_view import PortfolioCard
+from event_system import event_system
 
 class PortfolioPresenter:
     def __init__(self, view, model):
@@ -11,7 +12,36 @@ class PortfolioPresenter:
         
         # Connect to stock items in the view
         self.setup_stock_item_connections()
+        self._connect_events()
     
+    def _connect_events(self):
+        """Connect to any global events that should trigger portfolio updates"""
+        # Listen for portfolio and transaction updates
+        event_system.portfolio_updated.connect(self.refresh_portfolio)
+        event_system.transactions_updated.connect(self.refresh_portfolio)
+
+    def refresh_portfolio(self):
+        """Refresh all portfolio data"""
+        if not hasattr(self.view, 'firebaseUserId') or not self.view.firebaseUserId:
+            return
+            
+        # Fetch fresh data from the model
+        user_stocks = self.model.get_user_stocks(self.view.firebaseUserId)
+        balance = self.model.get_user_balance(self.view.firebaseUserId)
+        
+        # Only fetch stock details if we have stocks
+        stocks_details = {}
+        if user_stocks:
+            stocks_details = self.model.get_stocks_details(user_stocks)
+        
+        # Update the view's data
+        self.view.user_stocks = user_stocks
+        self.view.stocks_the_user_has = stocks_details
+        self.view.balance = balance
+        
+        # Update the UI
+        self.view.update_after_transaction()
+
     def setup_stock_item_connections(self):
         """Connect to stock items to access their sell buttons"""
         if hasattr(self.view, 'details_section'):
@@ -103,13 +133,27 @@ class PortfolioPresenter:
         
         # Here you would implement your selling logic
         success = self.model.sell_stock(symbol, quantity, self.view.firebaseUserId)
+
+
         
         if success:
+            print("Sell successful, getting updated data...")
             # Close the dialog
             if stock_item.sell_dialog:
                 stock_item.sell_dialog.close()
-                
-            # Update the view
-            self.view.update_after_transaction()
+
+            user_id = self.view.firebaseUserId
+            user_stocks = self.model.get_user_stocks(user_id)
+            transactions = self.model.get_user_transactions(user_id)
+            stocks_details = self.model.get_stocks_details(user_stocks)
+
+            print("Emitting data_updated signal...")
+
+            
+            event_system.portfolio_updated.emit()
+            event_system.transactions_updated.emit()
+            event_system.data_updated.emit(user_stocks, transactions, stocks_details)
+            
+            
             return True
         return False

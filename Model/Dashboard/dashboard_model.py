@@ -64,3 +64,5 @@ class DashboardModel:
         except Exception as e:
             print(f"Exception during API request: {str(e)}")
             return None
+        
+    

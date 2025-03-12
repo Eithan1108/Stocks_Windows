@@ -614,29 +614,10 @@ class OwnedStocksWidget(Card):
             font-weight: bold;
         """)
 
-        # Sort dropdown
-        sort_combo = QComboBox()
-        sort_combo.addItems(["Performance", "Alphabetical", "Position Size", "Recent Change"])
-        sort_combo.setFixedWidth(140)
-        sort_combo.setStyleSheet(f"""
-            QComboBox {{
-                background-color: {ColorPalette.BG_DARK};
-                color: {ColorPalette.TEXT_PRIMARY};
-                border: none;
-                border-radius: 6px;
-                padding: 5px 10px;
-            }}
-            QComboBox::drop-down {{
-                subcontrol-origin: padding;
-                subcontrol-position: top right;
-                width: 20px;
-                border: none;
-            }}
-        """)
+        
 
         header_layout.addWidget(title)
         header_layout.addStretch()
-        header_layout.addWidget(sort_combo)
 
         main_layout.addLayout(header_layout)
 
@@ -701,11 +682,14 @@ class OwnedStocksWidget(Card):
         add_btn.setStyleSheet(GlobalStyle.SECONDARY_BUTTON)
         add_btn.setCursor(Qt.PointingHandCursor)
         add_btn.setFixedHeight(36)
+        self.add_btn = add_btn
 
         view_all_btn = QPushButton("View All")
         view_all_btn.setStyleSheet(GlobalStyle.SECONDARY_BUTTON)
         view_all_btn.setCursor(Qt.PointingHandCursor)
         view_all_btn.setFixedHeight(36)
+
+        self.view_all_btn = view_all_btn
 
         action_layout.addWidget(add_btn)
         action_layout.addStretch()
@@ -961,6 +945,7 @@ class AIAdviceCard(Card):
         view_btn.setStyleSheet(GlobalStyle.PRIMARY_BUTTON)
         view_btn.setFixedHeight(36)
         main_layout.addWidget(view_btn)
+        self.view_button = view_btn
 
         # Set the main layout
         self.layout.addLayout(main_layout)
@@ -1313,38 +1298,6 @@ class AvatarWidget(QFrame):
             painter.end()
 
 # Improved search bar
-class SearchBar(QLineEdit):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setPlaceholderText("Search stocks, news, analysis...")
-        self.setStyleSheet(GlobalStyle.INPUT_STYLE)
-        self.setFixedHeight(40)
-        self.setMinimumWidth(250)
-
-        # Add search icon
-        self.addAction(self.create_search_icon(), QLineEdit.LeadingPosition)
-
-    def create_search_icon(self):
-        """Create a search icon"""
-        size = 16
-        pixmap = QPixmap(size, size)
-        pixmap.fill(Qt.transparent)
-
-        painter = QPainter(pixmap)
-        painter.setRenderHint(QPainter.Antialiasing)
-
-        # Draw search icon
-        painter.setPen(QPen(QColor(ColorPalette.TEXT_SECONDARY), 2))
-        painter.setBrush(Qt.NoBrush)
-
-        # Draw circle
-        painter.drawEllipse(2, 2, 8, 8)
-
-        # Draw handle
-        painter.drawLine(12, 12, 9, 9)
-
-        painter.end()
-        return QIcon(pixmap)
 
 # Responsive header with improved styling
 class Header(QFrame):
@@ -1375,73 +1328,13 @@ class Header(QFrame):
 
         title_layout.addWidget(title)
 
-        # Search bar - will adjust width based on available space
-        search = SearchBar()
-        search.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
 
         # Actions section with notification and profile
         actions_layout = QHBoxLayout()
         actions_layout.setSpacing(15)
 
-        # Notification button with unread indicator
-        notif_btn = QPushButton()
-        notif_btn.setFixedSize(42, 42)
-        notif_btn.setCursor(Qt.PointingHandCursor)
-        notif_btn.setStyleSheet(f"""
-            QPushButton {{
-                background-color: {ColorPalette.BG_CARD};
-                border: none;
-                border-radius: 21px;
-            }}
-            QPushButton:hover {{
-                background-color: {ColorPalette.BG_DARK};
-            }}
-        """)
 
-        # Notification icon with unread indicator
-        notif_icon_container = QWidget()
-        notif_icon_container.setFixedSize(42, 42)
-        notif_container_layout = QVBoxLayout(notif_icon_container)
-        notif_container_layout.setContentsMargins(0, 0, 0, 0)
-        notif_container_layout.setAlignment(Qt.AlignCenter)
 
-        # Create bell icon
-        notif_icon = QLabel()
-        notif_icon.setFixedSize(18, 18)
-        bell_pixmap = QPixmap(18, 18)
-        bell_pixmap.fill(Qt.transparent)
-
-        bell_painter = QPainter(bell_pixmap)
-        bell_painter.setRenderHint(QPainter.Antialiasing)
-        bell_painter.setPen(QPen(QColor(ColorPalette.TEXT_PRIMARY), 1.5))
-
-        # Draw bell shape
-        bell_path = QPainterPath()
-        bell_path.moveTo(9, 2)
-        bell_path.lineTo(9, 3)
-        bell_path.arcTo(5, 3, 8, 3, 180, 180)
-        bell_path.lineTo(15, 13)
-        bell_path.lineTo(3, 13)
-        bell_path.lineTo(5, 6)
-        bell_path.closeSubpath()
-
-        bell_painter.drawPath(bell_path)
-        bell_painter.drawLine(7, 15, 11, 15)
-
-        # Add unread notification dot
-        bell_painter.setPen(Qt.NoPen)
-        bell_painter.setBrush(QColor(ColorPalette.ACCENT_DANGER))
-        bell_painter.drawEllipse(13, 2, 5, 5)
-
-        bell_painter.end()
-        notif_icon.setPixmap(bell_pixmap)
-        notif_container_layout.addWidget(notif_icon)
-
-        # Add icon container to button
-        notif_layout = QVBoxLayout(notif_btn)
-        notif_layout.setContentsMargins(0, 0, 0, 0)
-        notif_layout.setAlignment(Qt.AlignCenter)
-        notif_layout.addWidget(notif_icon_container)
 
         # User profile button with improved styling
         profile_btn = QPushButton()
@@ -1466,13 +1359,11 @@ class Header(QFrame):
         avatar_layout.setAlignment(Qt.AlignCenter)
         avatar_layout.addWidget(avatar)
 
-        actions_layout.addWidget(notif_btn)
         actions_layout.addWidget(profile_btn)
 
         # Add all elements to main layout - responsive arrangement
         layout.addLayout(title_layout)
         layout.addStretch(1)  # Push search to center
-        layout.addWidget(search, 2)  # Give search 2x the stretch
         layout.addStretch(1)  # Push actions to right
         layout.addLayout(actions_layout)
 
@@ -1569,6 +1460,8 @@ class DashboardPage(QWidget):
     def __init__(self, parent=None, user=None, user_stocks=None, user_transactions=None, stocks_the_user_has=None, firebaseUserId=None):
         super().__init__(parent)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
+
 
         # Main layout
         layout = QVBoxLayout(self)
@@ -1730,6 +1623,7 @@ class DashboardPage(QWidget):
         ui_stocks = self.convert_stock_data(self.user_stocks, self.stocks_the_user_has)
         self.owned_stocks = OwnedStocksWidget(stocks=ui_stocks, stocks_the_user_has=self.stocks_the_user_has)
         self.owned_stocks.setMinimumHeight(350)
+        
 
         # Recent activity card
         self.recent_activity = Card("Recent Activity")
@@ -1793,6 +1687,8 @@ class DashboardPage(QWidget):
         view_all_btn = QPushButton("View All Transactions")
         view_all_btn.setStyleSheet(GlobalStyle.SECONDARY_BUTTON)
         recent_layout.addWidget(view_all_btn)
+
+        self.view_all_btn = view_all_btn
 
         # Add the layout to the card
         self.recent_activity.layout.addLayout(recent_layout)
@@ -1890,6 +1786,8 @@ class DashboardPage(QWidget):
         # Update recent transactions
         if hasattr(self, 'recent_activity'):
             self._update_recent_transactions()
+
+        
     
     def _update_owned_stocks_widget(self, ui_stocks):
         """Update the existing OwnedStocksWidget with new stocks"""
@@ -2006,6 +1904,8 @@ class MainWindow(QWidget):
         print("user_stocks" + str(user_stocks))
         print("user_transactions" + str(user_transactions))
         print("User balance" + str(balance))
+
+
         
         self.user = user
         self.user_stocks = user_stocks
@@ -2078,6 +1978,7 @@ class MainWindow(QWidget):
         self.main_layout.addWidget(self.sidebar)
 
         self._connect_sidebar_buttons()
+        
 
         # Content area with shadow separation
         self.content_area = QFrame()
@@ -2119,6 +2020,11 @@ class MainWindow(QWidget):
         # Load initial data through the presenter
         self.dashboard_presenter.load_initial_data()
 
+        self._connect_ai_advisor_buttons()
+        self._connect_add_stock_buttons()
+        self._connect_view_all_transactions()
+        self._connect_view_all_stocks()
+
 
 
         # Add to layout
@@ -2130,6 +2036,14 @@ class MainWindow(QWidget):
         # Connect to resize event to handle responsive layouts
         self.installEventFilter(self)
         self._adjust_responsive_layout()
+
+        from event_system import event_system
+        
+        # Connect to the signal with a debug print to confirm it's connecting
+        print("Connecting MainWindow to data_updated signal")
+        event_system.data_updated.connect(self.update_values)
+        print("Connection established")
+
 
     def _create_mobile_header(self):
         """Create a mobile header with menu button for narrow screens"""
@@ -2253,6 +2167,26 @@ class MainWindow(QWidget):
     def _reset_adjusting_flag(self):
         """Safely reset the adjusting flag after a delay"""
         self._is_adjusting = False
+
+
+    def update_values(self, user_stocks=None, user_transactions=None, stocks_the_user_has=None):
+        """Update the stored data across the main window and dashboard"""
+        print("MainWindow received data update signal")
+        
+        if user_stocks is not None:
+            self.user_stocks = user_stocks
+        if user_transactions is not None:
+            self.user_transactions = user_transactions
+        if stocks_the_user_has is not None:
+            self.stocks_the_user_has = stocks_the_user_has
+            
+        # Update dashboard if it exists
+        if hasattr(self, 'dashboard') and self.dashboard:
+            self.dashboard.update_dashboard_data(
+                user_stocks=self.user_stocks,
+                user_transactions=self.user_transactions,
+                stocks_the_user_has=self.stocks_the_user_has
+            )
 
     # Add this to MainWindow class
 
@@ -2386,7 +2320,17 @@ class MainWindow(QWidget):
         self.sidebar.profile_btn.clicked.connect(self._open_profile)
         self.sidebar.all_stocks.clicked.connect(self._open_stock_page)
 
-        # Connect other buttons as needed if you want
+    def _connect_ai_advisor_buttons(self):
+        self.dashboard.ai_advice.view_button.clicked.connect(self._open_ai_advisor)
+
+    def _connect_add_stock_buttons(self):
+        self.dashboard.owned_stocks.add_btn.clicked.connect(self._open_stock_page)
+
+    def _connect_view_all_stocks(self):
+        self.dashboard.owned_stocks.view_all_btn.clicked.connect(self._open_portfolio)
+
+    def _connect_view_all_transactions(self):
+        self.dashboard.view_all_btn.clicked.connect(self._open_transactions)
 
     def _open_stock_page(self):
         print("Open stock page")
@@ -2403,6 +2347,7 @@ class MainWindow(QWidget):
         # Store a reference to prevent garbage collection
         self.ai_window = AIAdvisorWindow()
         self.ai_window.show()
+
     def _open_portfolio(self):
         """Open the Portfolio window with real data"""
         # Store a reference to prevent garbage collection
@@ -2418,6 +2363,7 @@ class MainWindow(QWidget):
 
 
     def _open_transactions(self):
+        
         """Open the Transactions window"""
         # Store a reference to prevent garbage collection
         self.transactions_window = TransactionsPage(
@@ -2427,6 +2373,8 @@ class MainWindow(QWidget):
             balance=self.balance
         )
         self.transactions_window.show()
+
+    
     def _open_profile(self):
         """Open the Profile window"""
         profile_window = self.create_profile_page()

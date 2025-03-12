@@ -312,16 +312,19 @@ class PurchaseDialog(QDialog):
         price = self.stock_data["price"]
         symbol = self.stock_data["symbol"]
         
-        # Show confirmation dialog
+        # Skip confirmation dialog and directly emit signal
         total_cost = quantity * price
-        confirm_msg = QMessageBox()
-        confirm_msg.setWindowTitle("Confirm Purchase")
-        confirm_msg.setText(f"Are you sure you want to purchase {quantity} shares of {symbol} for ${total_cost:.2f}?")
-        confirm_msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
-        confirm_msg.setStyleSheet(f"""
+        self.purchase_confirmed.emit(symbol, quantity, price)
+        self.accept()
+        
+        # Show success message
+        success_msg = QMessageBox()
+        success_msg.setWindowTitle("Purchase Successful")
+        success_msg.setText(f"You have successfully purchased {quantity} shares of {symbol} for ${total_cost:.2f}.")
+        success_msg.setStyleSheet(f"""
             QMessageBox {{
                 background-color: {ColorPalette.BG_DARK};
-                color: {ColorPalette.TEXT_PRIMARY};
+                color: {ColorPalette.TEXT_SECONDARY};
             }}
             QMessageBox QPushButton {{
                 background-color: {ColorPalette.BG_CARD};
@@ -335,34 +338,7 @@ class PurchaseDialog(QDialog):
                 background-color: {ColorPalette.BORDER_LIGHT};
             }}
         """)
-        
-        # If confirmed, emit signal and close dialog
-        if confirm_msg.exec_() == QMessageBox.Yes:
-            self.purchase_confirmed.emit(symbol, quantity, price)
-            self.accept()
-            
-            # Show success message
-            success_msg = QMessageBox()
-            success_msg.setWindowTitle("Purchase Successful")
-            success_msg.setText(f"You have successfully purchased {quantity} shares of {symbol} for ${total_cost:.2f}.")
-            success_msg.setStyleSheet(f"""
-                QMessageBox {{
-                    background-color: {ColorPalette.BG_DARK};
-                    color: {ColorPalette.TEXT_PRIMARY};
-                }}
-                QMessageBox QPushButton {{
-                    background-color: {ColorPalette.BG_CARD};
-                    color: {ColorPalette.TEXT_PRIMARY};
-                    border: 1px solid {ColorPalette.BORDER_DARK};
-                    border-radius: 4px;
-                    padding: 5px 15px;
-                    min-width: 80px;
-                }}
-                QMessageBox QPushButton:hover {{
-                    background-color: {ColorPalette.BORDER_LIGHT};
-                }}
-            """)
-            success_msg.exec_()
+        success_msg.exec_()
 
 class Card(QFrame):
     def __init__(self, title="", content="", parent=None, min_height=150):
@@ -565,11 +541,7 @@ class StockInfoCard(Card):
         button_layout = QHBoxLayout()
         button_layout.setContentsMargins(0, 10, 0, 0)
         
-        # Add to watchlist button
-        self.watchlist_btn = QPushButton("+ Add to Watchlist")
-        self.watchlist_btn.setStyleSheet(GlobalStyle.SECONDARY_BUTTON)
-        self.watchlist_btn.setCursor(Qt.PointingHandCursor)
-        self.watchlist_btn.setFixedHeight(40)
+
         
         # Buy button
         self.buy_btn = QPushButton("Buy")
@@ -577,31 +549,11 @@ class StockInfoCard(Card):
         self.buy_btn.setCursor(Qt.PointingHandCursor)
         self.buy_btn.setFixedHeight(40)
         
-        # Sell button
-        self.sell_btn = QPushButton("Sell")
-        self.sell_btn.setStyleSheet(f"""
-            QPushButton {{
-                background-color: {ColorPalette.ACCENT_DANGER};
-                color: white;
-                border: none;
-                border-radius: 6px;
-                padding: 8px 16px;
-                font-weight: bold;
-                font-size: 14px;
-            }}
-            QPushButton:hover {{
-                background-color: #E57373;
-            }}
-            QPushButton:pressed {{
-                background-color: #B71C1C;
-            }}
-        """)
-        self.sell_btn.setCursor(Qt.PointingHandCursor)
-        self.sell_btn.setFixedHeight(40)
         
-        button_layout.addWidget(self.watchlist_btn)
+        
+
         button_layout.addStretch()
-        button_layout.addWidget(self.sell_btn)
+
         button_layout.addWidget(self.buy_btn)
         
         main_layout.addLayout(button_layout)
@@ -611,8 +563,7 @@ class StockInfoCard(Card):
         
         # Connect button signals
         self.buy_btn.clicked.connect(self._show_purchase_dialog)
-        self.sell_btn.clicked.connect(self._show_sell_dialog)
-        self.watchlist_btn.clicked.connect(self._add_to_watchlist)
+
     
     def _add_stat_item(self, layout, label_text, value_text):
         """Add a statistic item to the given layout"""
@@ -780,51 +731,7 @@ class StockSearchWindow(QWidget):
         self.search_bar = SearchBar(placeholder="Search stocks by symbol or name...")
         self.search_bar.setMinimumWidth(400)
         
-        # Market selector
-        market_label = QLabel("Market:")
-        market_label.setStyleSheet(f"color: {ColorPalette.TEXT_SECONDARY};")
         
-        self.market_combo = QComboBox()
-        self.market_combo.addItems(["All Markets", "NYSE", "NASDAQ", "AMEX", "OTC"])
-        self.market_combo.setStyleSheet(f"""
-            QComboBox {{
-                background-color: {ColorPalette.BG_CARD};
-                color: {ColorPalette.TEXT_PRIMARY};
-                border: none;
-                border-radius: 6px;
-                padding: 8px 12px;
-                min-width: 120px;
-            }}
-            QComboBox::drop-down {{
-                subcontrol-origin: padding;
-                subcontrol-position: top right;
-                width: 15px;
-                border: none;
-            }}
-        """)
-        
-        # Sector filter
-        sector_label = QLabel("Sector:")
-        sector_label.setStyleSheet(f"color: {ColorPalette.TEXT_SECONDARY};")
-        
-        self.sector_combo = QComboBox()
-        self.sector_combo.addItems(["All Sectors", "Technology", "Healthcare", "Finance", "Consumer", "Energy", "Industrial", "Utilities"])
-        self.sector_combo.setStyleSheet(f"""
-            QComboBox {{
-                background-color: {ColorPalette.BG_CARD};
-                color: {ColorPalette.TEXT_PRIMARY};
-                border: none;
-                border-radius: 6px;
-                padding: 8px 12px;
-                min-width: 120px;
-            }}
-            QComboBox::drop-down {{
-                subcontrol-origin: padding;
-                subcontrol-position: top right;
-                width: 15px;
-                border: none;
-            }}
-        """)
         
         # Add search button
         self.search_btn = QPushButton("Search")
@@ -836,10 +743,6 @@ class StockSearchWindow(QWidget):
         
         # Add to layout
         search_filter_layout.addWidget(self.search_bar, 1)  # Give search more space
-        search_filter_layout.addWidget(market_label)
-        search_filter_layout.addWidget(self.market_combo)
-        search_filter_layout.addWidget(sector_label)
-        search_filter_layout.addWidget(self.sector_combo)
         search_filter_layout.addWidget(self.search_btn)
         
         header_layout.addLayout(search_filter_layout)

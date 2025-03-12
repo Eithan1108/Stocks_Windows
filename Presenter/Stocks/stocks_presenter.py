@@ -28,6 +28,15 @@ class StocksPresenter:
     def handle_search(self):
         print("Search button clicked - handler called!")
         search_text = self.view.get_search_text()
+        self.is_symbol = True
+
+        # Determine if the search is a synbol or company name
+        for char in search_text:
+            if not char in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
+                self.is_symbol = False
+                break
+            
+
         
         # Clear previous results
         self.view._clear_results()
@@ -39,7 +48,12 @@ class StocksPresenter:
             return
             
         # Get results from model
-        api_results = self.model.search_stocks(search_text)
+        if self.is_symbol:
+            print("Searching by symbol")
+            api_results = self.model.search_stocks(search_text)
+        else:
+            print("Searching by name")
+            api_results = self.model.search_stocks_by_name(search_text)
         
         if not api_results:
             self.view.initial_message.setVisible(False)
@@ -109,7 +123,13 @@ class StocksPresenter:
         quantity = dialog.quantity_input.value()
         print("Purchase confirmation button clicked!")
         self.model.buy_stock(symbol, quantity, self.view.firebaseId)
+        user_id = self.view.firebaseId
+        user_stocks = self.model.get_user_stocks(user_id)
+        transactions = self.model.get_user_transactions(user_id)
+        stocks_details = self.model.get_stocks_details(user_stocks)
         event_system.portfolio_updated.emit()
+        event_system.transactions_updated.emit()
+        event_system.data_updated.emit(user_stocks, transactions, stocks_details)
 
         # Your purchase logic here
 
