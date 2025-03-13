@@ -835,12 +835,12 @@ class LoginWindow(QWidget):
         self._reset_input_style(page, "email_input")
         self._reset_input_style(page, "password_input")
 
-    def navigate_to_home(self, user, user_stocks, user_transactions, firebaseUserId, balance, stocks_the_user_has):
+    def navigate_to_home(self, user, user_stocks, user_transactions, firebaseUserId, balance, stocks_the_user_has, ai_advice):
         """Navigate to the home screen with the user's email"""
         from View.home_page import MainWindow
         
         # Create the home window (don't show yet)
-        self.home_window = MainWindow(user, user_stocks, user_transactions, firebaseUserId, balance, stocks_the_user_has)
+        self.home_window = MainWindow(user, user_stocks, user_transactions, firebaseUserId, balance, stocks_the_user_has, ai_advice)
         
         # If loading overlay is active, update message
         if self.loading_overlay and self.loading_overlay.isVisible():

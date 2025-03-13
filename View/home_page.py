@@ -825,7 +825,7 @@ class StockTable(QTableWidget):
 
 # Space-efficient AI Advice Card
 class AIAdviceCard(Card):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, ai_advice=None):
         super().__init__(title="", parent=parent)
         self.setStyleSheet(f"""
             background-color: {ColorPalette.BG_CARD};
@@ -835,6 +835,11 @@ class AIAdviceCard(Card):
 
         # Keep references to sub-widgets for responsive adjustments
         self.content_widgets = []
+        self.ai_advice = ai_advice or {}
+        print("The ai advice before fromating in the card", self.ai_advice)
+        self.ai_advice = self.parse_ai_advice(self.ai_advice)
+        print("The ai advice after fromating in the card", self.ai_advice)
+        
 
         # Setup content
         self._setup_ui()
@@ -904,8 +909,9 @@ class AIAdviceCard(Card):
         content_layout.setContentsMargins(15, 15, 15, 15)
         content_layout.setSpacing(12)
 
+
         # Main insight title
-        insight_title = QLabel("Market Trend Analysis")
+        insight_title = QLabel(self.ai_advice["title"])
         insight_title.setStyleSheet(f"""
             color: {ColorPalette.TEXT_PRIMARY};
             font-weight: bold;
@@ -915,7 +921,7 @@ class AIAdviceCard(Card):
         self.content_widgets.append(insight_title)
 
         # Main insight content
-        insight_content = QLabel("Market indicators suggest a potential bullish trend in tech stocks. Consider increasing positions in AAPL and MSFT while monitoring inflation data expected tomorrow. Your portfolio shows strong diversification but might benefit from increased exposure to renewable energy sector.")
+        insight_content = QLabel(self.ai_advice["content"])
         insight_content.setWordWrap(True)
         insight_content.setStyleSheet(f"""
             color: {ColorPalette.TEXT_SECONDARY};
@@ -925,14 +931,9 @@ class AIAdviceCard(Card):
         content_layout.addWidget(insight_content)
         self.content_widgets.append(insight_content)
 
-        # Add key points
-        key_points = [
-            {"text": "Tech sector showing strong momentum", "color": ColorPalette.ACCENT_SUCCESS},
-            {"text": "Watch inflation data release (Mar 3)", "color": ColorPalette.ACCENT_WARNING},
-            {"text": "Consider adding renewable energy stocks", "color": ColorPalette.ACCENT_INFO}
-        ]
 
-        for point in key_points:
+
+        for point in self.ai_advice["points"]:
             point_widget = self._create_key_point(point["text"], point["color"])
             content_layout.addWidget(point_widget)
             self.content_widgets.append(point_widget)
@@ -1038,6 +1039,136 @@ class AIAdviceCard(Card):
                     widget.setVisible(True)
 
         return super().eventFilter(obj, event)
+    
+    def parse_ai_advice(self, response_text):
+        """Convert API response to structured format, handling different response formats"""
+        # Default structure if we can't extract anything
+        formatted = {
+            'title': 'Market Insight',
+            'content': 'No market data available at this time.',
+            'points': [{
+                'text': 'Check back later for updated insights',
+                'color': ColorPalette.ACCENT_INFO
+            }]
+        }
+        
+        # Extract the content from the API response (handle both 'answer' and 'advice' keys)
+        content = None
+        if isinstance(response_text, dict):
+            if 'answer' in response_text:
+                content = response_text['answer']
+            elif 'advice' in response_text:
+                content = response_text['advice']
+        
+        if not content:
+            return formatted
+        
+        # Check if the content already has the required format
+        if 'TITLE:' in content and 'CONTENT:' in content and 'POINTS:' in content:
+            # Extract title
+            title_parts = content.split('TITLE:')
+            if len(title_parts) > 1:
+                title_text = title_parts[1].split('CONTENT:')[0].strip()
+                formatted['title'] = title_text
+            
+            # Extract content
+            content_parts = content.split('CONTENT:')
+            if len(content_parts) > 1:
+                content_text = content_parts[1].split('POINTS:')[0].strip()
+                formatted['content'] = content_text
+            
+            # Extract points
+            points_parts = content.split('POINTS:')
+            if len(points_parts) > 1:
+                points_text = points_parts[1].strip()
+                points = []
+                
+                for line in points_text.split('\n'):
+                    line = line.strip()
+                    if line.startswith('-'):
+                        line = line[1:].strip()
+                        
+                        # Determine the point type (success/warning/info)
+                        point_type = "INFO"  # Default
+                        point_text = line
+                        
+                        if "success:" in line.lower():
+                            point_type = "SUCCESS"
+                            point_text = line.split("success:", 1)[1].strip()
+                        elif "warning:" in line.lower():
+                            point_type = "WARNING"
+                            point_text = line.split("warning:", 1)[1].strip()
+                        elif "info:" in line.lower():
+                            point_type = "INFO"
+                            point_text = line.split("info:", 1)[1].strip()
+                        
+                        # Get color based on type
+                        color = ColorPalette.ACCENT_INFO  # Default
+                        if point_type == "SUCCESS":
+                            color = ColorPalette.ACCENT_SUCCESS
+                        elif point_type == "WARNING":
+                            color = ColorPalette.ACCENT_WARNING
+                        
+                        # Add point if we have text
+                        if point_text:
+                            points.append({
+                                'text': point_text,
+                                'color': color
+                            })
+                
+                # Only update if we found at least one point
+                if points:
+                    formatted['points'] = points
+        
+        return formatted
+
+    def validate_ai_response(self, response):
+        """Validate that the AI response is properly formatted and fix if needed"""
+        if isinstance(response, dict) and 'answer' in response:
+            answer = response['answer']
+            
+            # Check if the response has the required sections
+            has_title = 'TITLE:' in answer
+            has_content = 'CONTENT:' in answer
+            has_points = 'POINTS:' in answer
+            
+            # If missing any sections, reformat to default structure
+            if not (has_title and has_content and has_points):
+                # Create a fallback structured response
+                formatted = "TITLE: Market Analysis Update\n"
+                formatted += "CONTENT: " + answer.split('\n')[0] + "\n"
+                formatted += "POINTS:\n"
+                formatted += "- success: Consider focusing on quality companies with strong fundamentals\n"
+                formatted += "- warning: Monitor market volatility and adjust positions accordingly\n"
+                formatted += "- info: Diversify your portfolio across different sectors and asset classes"
+                
+                response['answer'] = formatted
+                
+            # Check if points have the required types
+            if 'success:' not in answer or 'warning:' not in answer or 'info:' not in answer:
+                # Extract existing content
+                title_part = answer.split('TITLE:')[1].split('CONTENT:')[0].strip() if 'TITLE:' in answer else "Market Analysis Update"
+                content_part = answer.split('CONTENT:')[1].split('POINTS:')[0].strip() if 'CONTENT:' in answer else answer.split('\n')[0]
+                
+                # Reformat points with proper types
+                formatted = f"TITLE: {title_part}\n"
+                formatted += f"CONTENT: {content_part}\n"
+                formatted += "POINTS:\n"
+                formatted += "- success: Consider focusing on quality companies with strong fundamentals\n"
+                formatted += "- warning: Monitor market volatility and adjust positions accordingly\n"
+                formatted += "- info: Diversify your portfolio across different sectors and asset classes"
+                
+                response['answer'] = formatted
+        
+        return response
+
+    def get_color_for_type(self, point_type):
+        if point_type == "SUCCESS":
+            return ColorPalette.ACCENT_SUCCESS
+        elif point_type == "WARNING":
+            return ColorPalette.ACCENT_WARNING
+        else:  # INFO
+            return ColorPalette.ACCENT_INFO
 
 # Sidebar navigation
 class Sidebar(QFrame):
@@ -1457,7 +1588,7 @@ class TransactionItem(QFrame):
 
 # Improved responsive dashboard layout
 class DashboardPage(QWidget):
-    def __init__(self, parent=None, user=None, user_stocks=None, user_transactions=None, stocks_the_user_has=None, firebaseUserId=None):
+    def __init__(self, parent=None, user=None, user_stocks=None, user_transactions=None, stocks_the_user_has=None, firebaseUserId=None, ai_advice=None):
         super().__init__(parent)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
@@ -1473,6 +1604,7 @@ class DashboardPage(QWidget):
         self.user_transactions = user_transactions
         self.stocks_the_user_has = stocks_the_user_has
         self.firebaseUserId = firebaseUserId
+        self.ai_advice = ai_advice
 
 
         user_name = self.user.get('username', 'User').split()[0] if self.user else 'User'
@@ -1533,7 +1665,7 @@ class DashboardPage(QWidget):
         self.portfolio_card.setMaximumHeight(450)  # Limit height to avoid stretching
 
         # AI Advice card with adjusted size
-        self.ai_advice = AIAdviceCard()
+        self.ai_advice = AIAdviceCard(parent=self, ai_advice=self.ai_advice)
         self.ai_advice.setMinimumHeight(200)  # Consistent height with portfolio card
         self.ai_advice.setMaximumHeight(450)  # Limit height to avoid stretching
 
@@ -1896,7 +2028,7 @@ class DashboardPage(QWidget):
 
 # Responsive main application window
 class MainWindow(QWidget):
-    def __init__(self, user=None, user_stocks=None, user_transactions=None, firebaseUserId=None, balance=None, stocks_the_user_has=None):
+    def __init__(self, user=None, user_stocks=None, user_transactions=None, firebaseUserId=None, balance=None, stocks_the_user_has=None, ai_advice=None):
         super().__init__()
         self.setWindowTitle("StockMaster Pro")
         self.setMinimumSize(900, 650)  # Reduced minimum size
@@ -1914,6 +2046,8 @@ class MainWindow(QWidget):
         self.balance = balance
         self.stocks_the_user_has = stocks_the_user_has
         print("Stocks the user has: ", self.stocks_the_user_has)
+        self.ai_advice = ai_advice
+        print("AI Advice: ", self.ai_advice)
 
 
         # Track sidebar state for narrow screens
@@ -2007,7 +2141,8 @@ class MainWindow(QWidget):
             user_stocks=self.user_stocks, 
             user_transactions=self.user_transactions, 
             stocks_the_user_has=self.stocks_the_user_has,
-            firebaseUserId=self.firebaseUserId
+            firebaseUserId=self.firebaseUserId,
+            ai_advice=self.ai_advice
         )
 
         # Create model and presenter for dashboard
@@ -2299,6 +2434,17 @@ class MainWindow(QWidget):
         view.presenter = presenter
         return view
     
+    def create_ai_caht_page(self):
+        from View.ai_advisor_window import AIAdvisorWindow
+        from Model.Ai_chat.ai_chat_model import AiChatModel
+        from Presenter.Ai_chat.ai_chat_presenter import AiChatPresenter
+
+        model = AiChatModel()
+
+        view = AIAdvisorWindow()
+        presenter = AiChatPresenter(view, model)
+        view.presenter = presenter
+        return view
 
     def create_protofilio_page(self, user, user_stocks, stocks_the_user_has, balance, firebaseUserId):
         from View.protofilio_view import PortfolioPage
@@ -2345,8 +2491,9 @@ class MainWindow(QWidget):
     def _open_ai_advisor(self):
         """Open the AI Advisor window"""
         # Store a reference to prevent garbage collection
-        self.ai_window = AIAdvisorWindow()
-        self.ai_window.show()
+        ai_advisor_window = self.create_ai_caht_page()
+        ai_advisor_window.show()
+        self.ai_advisor_window = ai_advisor_window
 
     def _open_portfolio(self):
         """Open the Portfolio window with real data"""

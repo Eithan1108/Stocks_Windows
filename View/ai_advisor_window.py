@@ -22,10 +22,11 @@ class ChatBubbleAnimation(QPropertyAnimation):
 
 
 class AIAdvisorWindow(QWidget):
-    def __init__(self, parent=None):
+    message_sent = Signal(str)
+    def __init__(self, parent=None): 
         super().__init__(parent)
         self.setWindowTitle("AI Financial Advisor - StockMaster Pro")
-        self.setMinimumSize(950, 650)
+        self.setMinimumSize(1300, 650)
 
         # Store chat message history
         self.chat_history = []
@@ -33,7 +34,10 @@ class AIAdvisorWindow(QWidget):
         # Create typing indicator
         self.typing_indicator = None
         self.ai_thinking_timer = QTimer(self)
-        self.ai_thinking_timer.timeout.connect(self._add_ai_response)
+        self.ai_thinking_timer.timeout.connect(self.add_ai_response)
+
+        self.typing_indicator = None
+        self.ai_thinking_timer = QTimer(self)
 
         # Set dark theme with dashboard matching style
         self.setStyleSheet(f"""
@@ -117,6 +121,12 @@ class AIAdvisorWindow(QWidget):
         header_layout.addLayout(action_layout)
 
         return header
+
+    def set_presenter(self, presenter):
+        """
+        Set the presenter for this view
+        """
+        self.presenter = presenter
 
     def _create_chat_card(self):
         """Create a chat card matching dashboard card style"""
@@ -294,6 +304,7 @@ class AIAdvisorWindow(QWidget):
         send_btn.setStyleSheet(GlobalStyle.PRIMARY_BUTTON)
         send_btn.setFixedSize(80, 40)
         send_btn.clicked.connect(self._send_message)
+        self.send_btn = send_btn
 
         input_layout.addWidget(self.input_field)
         input_layout.addWidget(send_btn)
@@ -423,8 +434,16 @@ class AIAdvisorWindow(QWidget):
 
         return message
 
+    def get_send_btn(self):
+        """Return the send button for testing purposes"""
+        return self.send_btn
+    def get_input_field(self):
+        """Return the input field for testing purposes"""
+        return self.input_field
+
+
     def _create_typing_indicator(self):
-        """Create a typing indicator that shows AI is thinking"""
+        """Create a typing indicator that shows AI is thinking with animated dots"""
         message = QFrame()
         message.setStyleSheet(f"""
             background-color: {ColorPalette.CARD_BG_DARKER};
@@ -433,6 +452,13 @@ class AIAdvisorWindow(QWidget):
             margin-right: 200px;
         """)
 
+        # Add subtle shadow for depth
+        shadow = QGraphicsDropShadowEffect()
+        shadow.setBlurRadius(10)
+        shadow.setColor(QColor(0, 0, 0, 30))
+        shadow.setOffset(0, 2)
+        message.setGraphicsEffect(shadow)
+
         message_layout = QHBoxLayout(message)
         message_layout.setContentsMargins(15, 10, 15, 10)
         message_layout.setSpacing(10)
@@ -440,76 +466,124 @@ class AIAdvisorWindow(QWidget):
         # AI avatar with accent color
         avatar = AvatarWidget("AI", size=24, background_color=ColorPalette.ACCENT_INFO)
 
-        # Typing dots container
-        typing_label = QLabel("Thinking")
-        typing_label.setStyleSheet(f"color: {ColorPalette.TEXT_SECONDARY}; font-size: 13px;")
-
+        # Create the typing animation container
+        typing_container = QWidget()
+        typing_container.setStyleSheet("background-color: transparent;")
+        typing_layout = QHBoxLayout(typing_container)
+        typing_layout.setContentsMargins(0, 0, 0, 0)
+        typing_layout.setSpacing(2)
+        
+        # "Thinking" label
+        thinking_label = QLabel("Thinking")
+        thinking_label.setStyleSheet(f"color: {ColorPalette.TEXT_SECONDARY}; font-size: 13px;")
+        
+        # Create dots for animation
+        self.animated_dots = []
+        for i in range(3):
+            dot = QLabel("•")
+            dot.setStyleSheet(f"""
+                color: {ColorPalette.TEXT_SECONDARY};
+                font-size: 18px;
+                opacity: 0.{3+i};
+            """)
+            typing_layout.addWidget(dot)
+            self.animated_dots.append(dot)
+        
+        # Create and start the animation timer
+        self.dot_animation_timer = QTimer(self)
+        self.dot_animation_timer.timeout.connect(self._animate_typing_dots)
+        self.dot_animation_timer.start(300)  # Update every 300ms
+        
+        # Add components to layout
         message_layout.addWidget(avatar)
-        message_layout.addWidget(typing_label)
+        message_layout.addWidget(thinking_label)
+        message_layout.addWidget(typing_container)
         message_layout.addStretch()
 
         return message
 
+    def _animate_typing_dots(self):
+        """Animate the typing indicator dots with a pulsing effect"""
+        if not hasattr(self, 'animated_dots') or not self.animated_dots:
+            return
+            
+        # Get current opacities and cycle them
+        opacities = []
+        for dot in self.animated_dots:
+            style = dot.styleSheet()
+            if "opacity: 0.3" in style:
+                opacities.append(0.3)
+            elif "opacity: 0.6" in style:
+                opacities.append(0.6)
+            else:
+                opacities.append(0.9)
+        
+        # Rotate opacities (first becomes last)
+        opacities = opacities[1:] + [opacities[0]]
+        
+        # Apply new opacities
+        for i, dot in enumerate(self.animated_dots):
+            dot.setStyleSheet(f"""
+                color: {ColorPalette.TEXT_SECONDARY};
+                font-size: 18px;
+                opacity: {opacities[i]};
+            """)
+
     def _send_message(self):
-        """Send a message and get AI response"""
+        """Handle send button click or Enter key press"""
         message_text = self.input_field.text().strip()
         if not message_text:
             return
-
+        
         # Add user message to chat
         user_message = self._create_user_message(message_text)
-
+        
         # Remove stretch spacer if it exists
-        if self.message_layout.count() > 0 and isinstance(self.message_layout.itemAt(self.message_layout.count()-1), QSpacerItem):
+        if self.message_layout.count() > 0 and isinstance(
+                self.message_layout.itemAt(self.message_layout.count()-1), 
+                QSpacerItem):
             spacer = self.message_layout.itemAt(self.message_layout.count()-1)
             self.message_layout.removeItem(spacer)
-
+        
         self.message_layout.addWidget(user_message)
         self.chat_history.append(("user", message_text))
-
+        
         # Clear input field
         self.input_field.clear()
-
-        # Add typing indicator
-        self.typing_indicator = self._create_typing_indicator()
-        self.message_layout.addWidget(self.typing_indicator)
-
+        
+        # Emit signal with the message - this will notify the presenter
+        self.message_sent.emit(message_text)
+        
         # Scroll to bottom
-        QTimer.singleShot(100, self._scroll_to_bottom)
+        QTimer.singleShot(50, self._scroll_to_bottom)
 
-        # Simulate AI thinking and responding
-        self.ai_thinking_timer.start(2000)
-
-    def _add_ai_response(self):
+    def add_ai_response(self, response):
         """Add AI response after thinking animation"""
-        # Stop the thinking timer
-        self.ai_thinking_timer.stop()
-
         # Remove typing indicator
         if self.typing_indicator:
             self.typing_indicator.setVisible(False)
             self.message_layout.removeWidget(self.typing_indicator)
             self.typing_indicator.deleteLater()
             self.typing_indicator = None
-
-        # Generate response based on latest user message
-        last_message = self.chat_history[-1][1] if self.chat_history else ""
-        response = self._generate_ai_response(last_message)
-
+        
+        # Format the response if it's a dict
+        response_text = response
+        if isinstance(response, dict):
+            if 'advice' in response:
+                response_text = response['advice']
+            elif 'answer' in response:
+                response_text = response['answer']
+        
         # Add AI response
-        ai_message = self._create_ai_message(response)
+        ai_message = self._create_ai_message(response_text)
         self.message_layout.addWidget(ai_message)
-        self.chat_history.append(("ai", response))
-
+        self.chat_history.append(("ai", response_text))
+        
         # Add stretch spacer back
         self.message_layout.addStretch()
-
+        
         # Scroll to bottom
         QTimer.singleShot(100, self._scroll_to_bottom)
-
-        # Animate the new message
-        animation = ChatBubbleAnimation(ai_message)
-        animation.start()
 
     def _generate_ai_response(self, user_message):
         """Generate an appropriate AI response based on the user message"""
@@ -576,6 +650,85 @@ class AIAdvisorWindow(QWidget):
         self.messages_area.verticalScrollBar().setValue(
             self.messages_area.verticalScrollBar().maximum()
         )
+
+    def add_user_message(self, message_text):
+        """Add a user message to the chat"""
+        # Create and add user message widget
+        user_message = self._create_user_message(message_text)
+        
+        # Remove stretch spacer if it exists
+        if self.message_layout.count() > 0 and isinstance(self.message_layout.itemAt(self.message_layout.count()-1), QSpacerItem):
+            spacer = self.message_layout.itemAt(self.message_layout.count()-1)
+            self.message_layout.removeItem(spacer)
+        
+        # Add the message
+        self.message_layout.addWidget(user_message)
+        self.chat_history.append(("user", message_text))
+        
+        # Scroll to bottom
+        QTimer.singleShot(100, self._scroll_to_bottom)
+
+    def show_typing_indicator(self):
+        """Show the typing indicator"""
+        # Remove existing indicator if any
+        self.hide_typing_indicator()
+        
+        # Remove stretch spacer if it exists
+        if self.message_layout.count() > 0 and isinstance(
+                self.message_layout.itemAt(self.message_layout.count()-1), 
+                QSpacerItem):
+            spacer = self.message_layout.itemAt(self.message_layout.count()-1)
+            self.message_layout.removeItem(spacer)
+        
+        # Create and add new typing indicator
+        self.typing_indicator = self._create_typing_indicator()
+        self.message_layout.addWidget(self.typing_indicator)
+        
+        # Scroll to bottom
+        QTimer.singleShot(50, self._scroll_to_bottom)
+
+    def hide_typing_indicator(self):
+        """Hide and remove the typing indicator"""
+        if self.typing_indicator:
+            # Stop the dot animation
+            if hasattr(self, 'dot_animation_timer') and self.dot_animation_timer.isActive():
+                self.dot_animation_timer.stop()
+            
+            # Clean up the indicator
+            self.typing_indicator.setVisible(False)
+            self.message_layout.removeWidget(self.typing_indicator)
+            self.typing_indicator.deleteLater()
+            self.typing_indicator = None
+            self.animated_dots = []
+
+    def add_ai_message(self, response):
+        """Add an AI message with the given response"""
+        # Format the response if needed
+        formatted_response = response
+        if isinstance(response, dict):
+            if 'advice' in response:
+                formatted_response = response['advice']
+            elif 'answer' in response:
+                formatted_response = response['answer']
+        
+        # Create and add AI message
+        ai_message = self._create_ai_message(formatted_response)
+        self.message_layout.addWidget(ai_message)
+        self.chat_history.append(("ai", formatted_response))
+        
+        # Add stretch spacer back
+        self.message_layout.addStretch()
+        
+        # Scroll to bottom
+        QTimer.singleShot(100, self._scroll_to_bottom)
+        
+        # Animate the new message
+        animation = ChatBubbleAnimation(ai_message)
+        animation.start()
+
+    def clear_input(self):
+        """Clear the input field"""
+        self.input_field.clear()
 
 
 # For testing

@@ -85,6 +85,7 @@ class AuthPresenter:
             user_info = self.model.get_user_info(text)
             user_stocks = self.model.get_user_stocks(text)
             user_transactions = self.model.get_user_transactions(text)
+            ai_advice = self.get_ai_advice()
             # Extarct user stocks from user_stocks
             # The user_stocks structure is [{'stockSymbol': 'AAPL', 'quantity': 10}]
             stocks = []
@@ -96,7 +97,7 @@ class AuthPresenter:
             print("User transactions:", user_transactions)
             self.view.loading_overlay.message_label.setText("Loading your dashboard...")
             balance = self.get_balance(text)
-            QTimer.singleShot(1000, lambda: self.view.navigate_to_home(user_info, user_stocks, user_transactions, text, balance, stocks_user_holds))
+            QTimer.singleShot(1000, lambda: self.view.navigate_to_home(user_info, user_stocks, user_transactions, text, balance, stocks_user_holds, ai_advice))
         else:
             # Stop loading and show error
             self.view.loading_overlay.stop()
@@ -128,6 +129,7 @@ class AuthPresenter:
             user_stocks = []
             user_transactions = []
             stocks_user_holds = []
+            ai_advice = self.get_ai_advice()
             print("User info:", user_info)
             print("User stocks:", user_stocks)
             print("User transactions:", user_transactions)
@@ -135,7 +137,7 @@ class AuthPresenter:
             # Keep showing loading while transitioning to home screen
             self.view.loading_overlay.message_label.setText("Setting up your account...")
             balance = self.get_balance(text)
-            QTimer.singleShot(1000, lambda: self.view.navigate_to_home(user_info, user_stocks, user_transactions, text, balance, stocks_user_holds))
+            QTimer.singleShot(1000, lambda: self.view.navigate_to_home(user_info, user_stocks, user_transactions, text, balance, stocks_user_holds, ai_advice))
         else:
             # Stop loading and show error
             self.view.loading_overlay.stop()
@@ -171,6 +173,7 @@ class AuthPresenter:
             user_info = self.model.get_user_info(user_data)
             user_stocks = self.model.get_user_stocks(user_data)
             user_transactions = self.model.get_user_transactions(user_data)
+            ai_advice = self.get_ai_advice()
             stocks = []
             for stock in user_stocks:   
                 stocks.append(stock['stockSymbol'])
@@ -187,7 +190,7 @@ class AuthPresenter:
             
             # Use timer to allow the UI to update before navigation
             balance = self.get_balance(user_data)
-            QTimer.singleShot(800, lambda: self.view.navigate_to_home(user_info, user_stocks, user_transactions, user_data, balance, stocks_user_holds))
+            QTimer.singleShot(800, lambda: self.view.navigate_to_home(user_info, user_stocks, user_transactions, user_data, balance, stocks_user_holds, ai_advice))
         else:
             # Stop loading and show error
             self.view.loading_overlay.stop()
@@ -211,7 +214,10 @@ class AuthPresenter:
         # This will be implemented later
         pass
 
-
     def get_balance(self, firebaseId):
         print("Getting balance for user with ID:", firebaseId)
         return self.model.get_balance(firebaseId)
+    
+
+    def get_ai_advice(self):
+        return self.model.get_ai_advice()

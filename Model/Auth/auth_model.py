@@ -205,3 +205,28 @@ class AuthModel:
         except Exception as e:
             print(f"Exception during API request: {str(e)}")
             return None
+        
+
+    def get_ai_advice(self):
+        try:
+
+            # A very long strin with mutliple lines for prompt
+
+            prompt = "Give me daily tip"
+             
+
+            response = requests.get("http://localhost:5000/api/rag/daily-advice")
+            
+            if response.status_code == 200:
+                data = response.json()
+                print(f"API response for get_ai_advide in the model: {data}")
+                return data
+            else:
+                print(f"Error fetching stocks: {response.status_code}")
+                return None
+        except Exception as e:
+            print(f"Exception during API request: {str(e)}")
+            return None
+        
+
+    
