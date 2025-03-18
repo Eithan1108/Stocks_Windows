@@ -6,9 +6,6 @@ from PySide6.QtWidgets import QApplication
 from Model.Auth.auth_model import AuthModel
 from View.auth_page import LoginWindow
 from Presenter.Auth.auth_presenter import AuthPresenter
-from Model.Stocks.stocks_model import StocksModel
-from View.stock_search_window import StockSearchWindow
-from Presenter.Stocks.stocks_presenter import StocksPresenter
 
 
 

@@ -1,5 +1,6 @@
 # Models/auth_model.py
 import requests
+from datetime import timedelta, date
 
 class AuthModel:
     def __init__(self):
@@ -184,6 +185,22 @@ class AuthModel:
             print(f"API request error: {e}")
             return None
         
+    def get_user_history(self, symbol):
+        year = "1-1-2025"
+        now = date.today()
+        now = now.strftime("%Y-%m-%d")
+        try:
+            response = requests.get(f"http://localhost:5000/api/stocks/history?ticker={symbol}&startDate={year}&endDate={now}")
+            if response.status_code == 200:
+                data = response.json()
+                print(f"API response for get_stock_history: {data}")
+                return data
+            else:
+                print(f"Failed to get stock history. Status code: {response}")
+                return None
+        except Exception as e:
+            print(f"Error fetching stock history: {str(e)}")
+            return
 
     def get_stocks_user_holds(self, user_id, stocks):
         """Get user's stock holdings from the API"""

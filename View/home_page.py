@@ -165,10 +165,11 @@ class Card(QFrame):
 
 # Improved portfolio summary card with better space utilization
 class PortfolioSummaryCard(QFrame):
-    def __init__(self, user_stocks=None, stocks_data=None, parent=None):
+    def __init__(self, user_stocks=None, stocks_data=None, history=None, parent=None):
         super().__init__(parent)
         self.user_stocks = user_stocks or []
         self.stocks_data = stocks_data or {}
+        self.history = history or []
         
         # Calculate portfolio values
         self.calculate_portfolio_data()
@@ -221,53 +222,45 @@ class PortfolioSummaryCard(QFrame):
         self.balance = f"${self.total_value:,.2f}"
         self.change = f"{self.weighted_change_pct:+.2f}%" if self.weighted_change_pct != 0 else "0.00%"
         
-        # Generate trend data based on stock changes
+        # Generate trend data based on history if available
         self.trend_data = self._generate_trend_data()
 
     def _generate_trend_data(self):
-        """Generate trend data for the chart based on actual stock data"""
-        points = []
-        
-        # If we have historical data, we could use it here
-        # For now, we'll generate semi-realistic data based on the current change
+        """Generate trend data for the chart based on history data if available, otherwise use stock changes"""
+        # Use history data for the graph if available
+        if self.history and len(self.history) > 0:
+            # Extract closing prices from history for the chart
+            try:
+                return [float(entry.get('close', 0)) for entry in self.history]
+            except (ValueError, TypeError):
+                # Fall back to default behavior if there's an error
+                pass
+                
+        # Original code for generating trend data based on portfolio change
+        import random
         
         num_points = 40
         base = 100
-        
-        # Use the actual portfolio change to influence the trend
         change_factor = self.weighted_change_pct / 100
-        
-        # Generate points with a trend that ends with our actual change percentage
-        import random
-        
-        # Create a more natural curve that ends with our current change
         total_change = change_factor * base
         avg_step = total_change / num_points
         
         # Start with base value
         current = base
-        points.append(current)
+        points = [current]
         
         # Generate intermediate points with controlled randomness
         for i in range(1, num_points):
-            # More randomness in the middle, more directed at the end
             progress = i / num_points
-            randomness = 1 - (progress * 0.7)  # Reduce randomness as we approach the end
-            
-            # Step size combines the trend and randomness
+            randomness = 1 - (progress * 0.7)
             step = avg_step + (random.uniform(-2, 2) * randomness)
             
-            # Adjust to ensure we end up close to the target change
             remaining_steps = num_points - i
             remaining_change = (base + total_change) - current
             correction = (remaining_change / remaining_steps) * 0.3
             
-            # Apply step with correction
             current += step + correction
-            
-            # Ensure we don't go too low
             current = max(current, base * 0.5)
-            
             points.append(current)
             
         return points
@@ -297,8 +290,8 @@ class PortfolioSummaryCard(QFrame):
         value_section.addWidget(title_label)
 
         # Balance value - large and prominent
-        balance_label = QLabel(self.balance)
-        balance_label.setStyleSheet("""
+        self.balance_label = QLabel(self.balance)
+        self.balance_label.setStyleSheet("""
             color: white;
             font-size: 36px;
             font-weight: bold;
@@ -310,8 +303,8 @@ class PortfolioSummaryCard(QFrame):
         is_positive = not change_str.startswith("-")
         bg_opacity = "0.2" if is_positive else "0.15"
 
-        change_label = QLabel(change_str)
-        change_label.setStyleSheet(f"""
+        self.change_label = QLabel(change_str)
+        self.change_label.setStyleSheet(f"""
             color: white;
             font-size: 16px;
             font-weight: bold;
@@ -320,9 +313,9 @@ class PortfolioSummaryCard(QFrame):
             padding: 4px 10px;
         """)
 
-        value_section.addWidget(balance_label)
-        value_section.addWidget(change_label)
-        value_section.setAlignment(change_label, Qt.AlignLeft)
+        value_section.addWidget(self.balance_label)
+        value_section.addWidget(self.change_label)
+        value_section.setAlignment(self.change_label, Qt.AlignLeft)
 
         # Add value section to top section
         top_section.addLayout(value_section)
@@ -371,6 +364,9 @@ class PortfolioSummaryCard(QFrame):
             painter.setRenderHint(QPainter.Antialiasing)
 
             # Determine min and max values for scaling
+            if not self.trend_data:
+                return
+                
             min_val = min(self.trend_data)
             max_val = max(self.trend_data)
             value_range = max(0.1, max_val - min_val)  # Avoid division by zero
@@ -407,8 +403,10 @@ class PortfolioSummaryCard(QFrame):
                     fill_path.lineTo(0, height)
                     fill_path.closeSubpath()
 
-                    # Draw fill with gradient - adjust opacity based on change
+                    # Use weighted_change_pct for determining color as in the original code
                     is_positive = self.weighted_change_pct >= 0
+
+                    # Draw fill with gradient - adjust opacity based on change
                     gradient = QLinearGradient(0, 0, 0, height)
                     gradient.setColorAt(0, QColor(255, 255, 255, 80))
                     gradient.setColorAt(1, QColor(255, 255, 255, 0))
@@ -436,12 +434,14 @@ class PortfolioSummaryCard(QFrame):
         finally:
             self._is_updating_graph = False
             
-    def update_data(self, user_stocks=None, stocks_data=None):
+    def update_data(self, user_stocks=None, stocks_data=None, history=None):
         """Update the card with new data"""
         if user_stocks is not None:
             self.user_stocks = user_stocks
         if stocks_data is not None:
             self.stocks_data = stocks_data
+        if history is not None:
+            self.history = history
             
         # Recalculate portfolio data
         self.calculate_portfolio_data()
@@ -1588,7 +1588,7 @@ class TransactionItem(QFrame):
 
 # Improved responsive dashboard layout
 class DashboardPage(QWidget):
-    def __init__(self, parent=None, user=None, user_stocks=None, user_transactions=None, stocks_the_user_has=None, firebaseUserId=None, ai_advice=None):
+    def __init__(self, parent=None, user=None, user_stocks=None, user_transactions=None, stocks_the_user_has=None, firebaseUserId=None, ai_advice=None, history=None):
         super().__init__(parent)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
@@ -1605,6 +1605,7 @@ class DashboardPage(QWidget):
         self.stocks_the_user_has = stocks_the_user_has
         self.firebaseUserId = firebaseUserId
         self.ai_advice = ai_advice
+        self.history = history
 
 
         user_name = self.user.get('username', 'User').split()[0] if self.user else 'User'
@@ -1656,7 +1657,8 @@ class DashboardPage(QWidget):
         # Create the portfolio card with actual data
         self.portfolio_card = PortfolioSummaryCard(
             user_stocks=self.user_stocks,
-            stocks_data=self.stocks_the_user_has
+            stocks_data=self.stocks_the_user_has,
+            history = self.history
         )
         
         # Reduce the minimum height and make it less dominant
@@ -2028,7 +2030,7 @@ class DashboardPage(QWidget):
 
 # Responsive main application window
 class MainWindow(QWidget):
-    def __init__(self, user=None, user_stocks=None, user_transactions=None, firebaseUserId=None, balance=None, stocks_the_user_has=None, ai_advice=None):
+    def __init__(self, user=None, user_stocks=None, user_transactions=None, firebaseUserId=None, balance=None, stocks_the_user_has=None, ai_advice=None, history=None):
         super().__init__()
         self.setWindowTitle("StockMaster Pro")
         self.setMinimumSize(900, 650)  # Reduced minimum size
@@ -2048,6 +2050,8 @@ class MainWindow(QWidget):
         print("Stocks the user has: ", self.stocks_the_user_has)
         self.ai_advice = ai_advice
         print("AI Advice: ", self.ai_advice)
+        self.history = history
+        print("The history the card got is:" + str(self.history)) 
 
 
         # Track sidebar state for narrow screens
@@ -2142,7 +2146,8 @@ class MainWindow(QWidget):
             user_transactions=self.user_transactions, 
             stocks_the_user_has=self.stocks_the_user_has,
             firebaseUserId=self.firebaseUserId,
-            ai_advice=self.ai_advice
+            ai_advice=self.ai_advice,
+            history = self.history
         )
 
         # Create model and presenter for dashboard
