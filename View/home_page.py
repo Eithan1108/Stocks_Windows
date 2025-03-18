@@ -25,19 +25,6 @@ from PySide6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequ
 from PySide6.QtSvg import QSvgRenderer
 
 
-
-
-# Modern color palette
-# Modern color palette with improved contrast and subtle variations
-
-
-
-def load_fonts():
-    """Load custom fonts for the application"""
-    # In a real app, you would include these font files with your application
-    # For this example, we'll use system fonts with fallbacks
-    pass
-
 # Icon button for sidebar
 class SidebarButton(QPushButton):
     def __init__(self, icon_name, text="", parent=None, is_active=False):
@@ -195,28 +182,28 @@ class PortfolioSummaryCard(QFrame):
     def calculate_portfolio_data(self):
         """Calculate portfolio value, change, and historical trend"""
         self.total_value = 0
-        self.total_previous_value = 0
+        self.total_cost_basis = 0  # Total amount user paid to buy stocks
         self.weighted_change_pct = 0
         
-        # Calculate current and previous portfolio values
+        # Calculate current value and cost basis
         if self.user_stocks and self.stocks_data:
             for stock in self.user_stocks:
                 symbol = stock.get('stockSymbol')
                 quantity = float(stock.get('quantity', 0))
+                purchase_price = float(stock.get('price', 0))  # Price user paid
+                
+                # Cost basis (what user paid)
+                self.total_cost_basis += purchase_price * quantity
                 
                 if symbol in self.stocks_data:
                     # Current value
                     current_price = self.stocks_data[symbol].get('currentPrice', 0)
                     self.total_value += current_price * quantity
-                    
-                    # Previous value (for change calculation)
-                    previous_price = self.stocks_data[symbol].get('previousClose', 0)
-                    self.total_previous_value += previous_price * quantity
         
-        # Calculate percentage change
-        if self.total_previous_value > 0:
-            self.weighted_change_pct = ((self.total_value - self.total_previous_value) / 
-                                        self.total_previous_value) * 100
+        # Calculate percentage change from purchase price to current value
+        if self.total_cost_basis > 0:
+            self.weighted_change_pct = ((self.total_value - self.total_cost_basis) / 
+                                        self.total_cost_basis) * 100
         
         # Format values for display
         self.balance = f"${self.total_value:,.2f}"
@@ -226,44 +213,18 @@ class PortfolioSummaryCard(QFrame):
         self.trend_data = self._generate_trend_data()
 
     def _generate_trend_data(self):
-        """Generate trend data for the chart based on history data if available, otherwise use stock changes"""
+        """Generate trend data for the chart based on history data if available"""
         # Use history data for the graph if available
         if self.history and len(self.history) > 0:
             # Extract closing prices from history for the chart
             try:
                 return [float(entry.get('close', 0)) for entry in self.history]
             except (ValueError, TypeError):
-                # Fall back to default behavior if there's an error
-                pass
+                # Fall back to no graph if there's an error
+                return []
                 
-        # Original code for generating trend data based on portfolio change
-        import random
-        
-        num_points = 40
-        base = 100
-        change_factor = self.weighted_change_pct / 100
-        total_change = change_factor * base
-        avg_step = total_change / num_points
-        
-        # Start with base value
-        current = base
-        points = [current]
-        
-        # Generate intermediate points with controlled randomness
-        for i in range(1, num_points):
-            progress = i / num_points
-            randomness = 1 - (progress * 0.7)
-            step = avg_step + (random.uniform(-2, 2) * randomness)
-            
-            remaining_steps = num_points - i
-            remaining_change = (base + total_change) - current
-            correction = (remaining_change / remaining_steps) * 0.3
-            
-            current += step + correction
-            current = max(current, base * 0.5)
-            points.append(current)
-            
-        return points
+        # Return empty list if no history available - no graph will be shown
+        return []
 
     def _setup_ui(self):
         """Setup the card UI with better space utilization"""
@@ -326,24 +287,44 @@ class PortfolioSummaryCard(QFrame):
         # Add top section to main layout
         main_layout.addLayout(top_section)
 
-        # Graph takes the remaining space
-        self.graph_label = QLabel()
-        self.graph_label.setMinimumHeight(150)
-        self.graph_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.graph_label.setStyleSheet("background: transparent;")
-        main_layout.addWidget(self.graph_label, 1)  # 1 = stretch factor
+        # Graph takes the remaining space - only if we have history data
+        if self.trend_data:
+            self.graph_label = QLabel()
+            self.graph_label.setMinimumHeight(150)
+            self.graph_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+            self.graph_label.setStyleSheet("background: transparent;")
+            main_layout.addWidget(self.graph_label, 1)  # 1 = stretch factor
 
-        # Initial graph update
-        self._update_graph()
+            # Initial graph update
+            self._update_graph()
+        else:
+            # No graph area if we don't have history data
+            # Add a message or leave blank depending on preference
+            message_label = QLabel("No historical data available")
+            message_label.setStyleSheet("""
+                color: rgba(255, 255, 255, 0.7);
+                font-size: 14px;
+                font-style: italic;
+                background: transparent;
+                padding: 40px 0;
+            """)
+            message_label.setAlignment(Qt.AlignCenter)
+            main_layout.addWidget(message_label, 1)
+            self.message_label = message_label
 
     def eventFilter(self, obj, event):
         """Handle resize events"""
         if obj == self and event.type() == QEvent.Resize:
-            self._update_graph()
+            if hasattr(self, 'graph_label') and self.trend_data:
+                self._update_graph()
         return super().eventFilter(obj, event)
 
     def _update_graph(self):
         """Update the chart visualization with recursive protection"""
+        # Only update if we have a graph label and trend data
+        if not hasattr(self, 'graph_label') or not self.trend_data:
+            return
+            
         # Prevent recursive calls
         if hasattr(self, '_is_updating_graph') and self._is_updating_graph:
             return
@@ -362,10 +343,6 @@ class PortfolioSummaryCard(QFrame):
 
             painter = QPainter(pixmap)
             painter.setRenderHint(QPainter.Antialiasing)
-
-            # Determine min and max values for scaling
-            if not self.trend_data:
-                return
                 
             min_val = min(self.trend_data)
             max_val = max(self.trend_data)
@@ -446,14 +423,62 @@ class PortfolioSummaryCard(QFrame):
         # Recalculate portfolio data
         self.calculate_portfolio_data()
         
+        # Store old trend data to check if we need to rebuild UI
+        had_trend_data = bool(hasattr(self, 'trend_data') and self.trend_data)
+        has_trend_data_now = bool(self.trend_data)
+        
         # Update UI elements
         if hasattr(self, 'balance_label'):
             self.balance_label.setText(self.balance)
-        if hasattr(self, 'change_label'):
-            self.change_label.setText(self.change)
             
-        # Update graph
-        self._update_graph()
+        if hasattr(self, 'change_label'):
+            # Update the style based on the new change value
+            change_str = self.change
+            is_positive = not change_str.startswith("-")
+            bg_opacity = "0.2" if is_positive else "0.15"
+            self.change_label.setStyleSheet(f"""
+                color: white;
+                font-size: 16px;
+                font-weight: bold;
+                background: rgba(255, 255, 255, {bg_opacity});
+                border-radius: 4px;
+                padding: 4px 10px;
+            """)
+            self.change_label.setText(self.change)
+        
+        # Handle transition between having data and not having data
+        if had_trend_data != has_trend_data_now:
+            # Clear existing layout except for the top section
+            while self.layout().count() > 1:
+                item = self.layout().takeAt(1)
+                if item.widget():
+                    item.widget().deleteLater()
+                
+            # Rebuild the graph or message part
+            if has_trend_data_now:
+                # Add graph
+                self.graph_label = QLabel()
+                self.graph_label.setMinimumHeight(150)
+                self.graph_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+                self.graph_label.setStyleSheet("background: transparent;")
+                self.layout().addWidget(self.graph_label, 1)
+                self._update_graph()
+            else:
+                # Add message
+                message_label = QLabel("No historical data available")
+                message_label.setStyleSheet("""
+                    color: rgba(255, 255, 255, 0.7);
+                    font-size: 14px;
+                    font-style: italic;
+                    background: transparent;
+                    padding: 40px 0;
+                """)
+                message_label.setAlignment(Qt.AlignCenter)
+                self.layout().addWidget(message_label, 1)
+                self.message_label = message_label
+        elif has_trend_data_now and hasattr(self, 'graph_label'):
+            # Just update the existing graph
+            self._update_graph()
 
 
 # Improved stock item with responsive design
@@ -521,6 +546,10 @@ class StockItem(QFrame):
         # Change with colored background
         change_value = self.stock_data["change"]
         change_color = ColorPalette.ACCENT_SUCCESS if change_value > 0 else ColorPalette.ACCENT_DANGER
+        # Get first tow characters of the change value
+        change_value = str(change_value)[:5]
+        # Convert to float
+        change_value = float(change_value)
         change_text = f"+{change_value}%" if change_value > 0 else f"{change_value}%"
 
         self.change_label = QLabel(change_text)
@@ -614,18 +643,16 @@ class OwnedStocksWidget(Card):
             font-weight: bold;
         """)
 
-        
-
         header_layout.addWidget(title)
         header_layout.addStretch()
 
         main_layout.addLayout(header_layout)
 
         # Stocks list in a scrollable area for many stocks
-        stocks_scroll = QScrollArea()
-        stocks_scroll.setWidgetResizable(True)
-        stocks_scroll.setFrameShape(QFrame.NoFrame)
-        stocks_scroll.setStyleSheet("""
+        self.stocks_scroll = QScrollArea()
+        self.stocks_scroll.setWidgetResizable(True)
+        self.stocks_scroll.setFrameShape(QFrame.NoFrame)
+        self.stocks_scroll.setStyleSheet("""
             QScrollArea {
                 background: transparent;
                 border: none;
@@ -636,16 +663,16 @@ class OwnedStocksWidget(Card):
         """)
 
         # Container for stocks
-        stocks_container = QWidget()
-        stocks_container.setStyleSheet(f"""
+        self.stocks_container = QWidget()
+        self.stocks_container.setStyleSheet(f"""
             background-color: {ColorPalette.CARD_BG_DARKER};
             border-radius: 8px;
         """)
 
         # Set up stocks list
-        stocks_layout = QVBoxLayout(stocks_container)
-        stocks_layout.setContentsMargins(0, 0, 0, 0)
-        stocks_layout.setSpacing(0)
+        self.stocks_layout = QVBoxLayout(self.stocks_container)
+        self.stocks_layout.setContentsMargins(0, 0, 0, 0)
+        self.stocks_layout.setSpacing(0)
         
         # Calculate height based on number of stocks
         # Each stock item is 65px high, minimum height for empty state
@@ -653,27 +680,9 @@ class OwnedStocksWidget(Card):
         stock_item_height = 65    # Height of each stock item
         action_height = 66        # Height of action buttons section (15px padding top/bottom + 36px button height)
         
-        if not self.stocks:
-            # Show empty state
-            empty_label = QLabel("You don't have any stocks yet")
-            empty_label.setStyleSheet(f"""
-                color: {ColorPalette.TEXT_SECONDARY};
-                font-size: 14px;
-                text-align: center;
-                padding: 30px;
-            """)
-            empty_label.setAlignment(Qt.AlignCenter)
-            stocks_layout.addWidget(empty_label)
-            content_height = min_content_height
-        else:
-            # Show actual stocks
-            for i, stock in enumerate(self.stocks):
-                item = StockItem(stock, is_last=(i == len(self.stocks) - 1))
-                stocks_layout.addWidget(item)
+        # Show empty state or actual stocks
+        self.update_stock_items()
             
-            # Calculate content height based on number of stocks
-            content_height = len(self.stocks) * stock_item_height
-
         # Add action buttons
         action_layout = QHBoxLayout()
         action_layout.setContentsMargins(15, 15, 15, 15)
@@ -695,27 +704,26 @@ class OwnedStocksWidget(Card):
         action_layout.addStretch()
         action_layout.addWidget(view_all_btn)
 
-        stocks_layout.addLayout(action_layout)
+        self.stocks_layout.addLayout(action_layout)
 
         # Set the stocks container as the scroll area widget
-        stocks_scroll.setWidget(stocks_container)
+        self.stocks_scroll.setWidget(self.stocks_container)
         
         # Calculate total content height: content + action buttons + some buffer
+        content_height = len(self.stocks) * stock_item_height if self.stocks else min_content_height
         total_height = content_height + action_height + 20
         
         # Set a reasonable height - not too large when we have few stocks
         ideal_height = min(350, max(180, total_height))
-        stocks_scroll.setMinimumHeight(ideal_height)
-        stocks_scroll.setMaximumHeight(ideal_height)
+        self.stocks_scroll.setMinimumHeight(ideal_height)
+        self.stocks_scroll.setMaximumHeight(ideal_height)
 
-        main_layout.addWidget(stocks_scroll)
+        main_layout.addWidget(self.stocks_scroll)
 
         # Portfolio summary stats at the bottom
         summary_layout = QHBoxLayout()
         summary_layout.setContentsMargins(20, 0, 20, 20)  # Bottom padding
         summary_layout.setSpacing(20)
-
-        
 
         # Add flexible spacer at the end
         summary_layout.addStretch()
@@ -725,18 +733,17 @@ class OwnedStocksWidget(Card):
         # Set layout to the card
         self.layout.addLayout(main_layout)
 
-    def update_stocks(self, new_stocks):
-        """Update the widget with new stock data"""
-        self.stocks = new_stocks
+    def update_stock_items(self):
+        """Update the stock items in the container"""
+        # Clear existing stock items and empty state message (if any)
+        for i in reversed(range(self.stocks_layout.count())):
+            item = self.stocks_layout.itemAt(i)
+            if item.widget() and (isinstance(item.widget(), StockItem) or isinstance(item.widget(), QLabel)):
+                item.widget().deleteLater()
+            elif item.layout():
+                # Skip layouts (like the action buttons layout)
+                continue
         
-        # Clear existing stock items
-        for i in reversed(range(self.layout.count())):
-            widget = self.layout.itemAt(i).widget()
-            if isinstance(widget, StockItem):
-                self.layout.removeWidget(widget)
-                widget.deleteLater()
-        
-        # Add new stock items
         if not self.stocks:
             # Show empty state
             empty_label = QLabel("You don't have any stocks yet")
@@ -747,12 +754,30 @@ class OwnedStocksWidget(Card):
                 padding: 30px;
             """)
             empty_label.setAlignment(Qt.AlignCenter)
-            self.layout.addWidget(empty_label)
+            self.stocks_layout.insertWidget(0, empty_label)
         else:
             # Show actual stocks
             for i, stock in enumerate(self.stocks):
                 item = StockItem(stock, is_last=(i == len(self.stocks) - 1))
-                self.layout.addWidget(item)
+                self.stocks_layout.insertWidget(i, item)
+
+    def update_stocks(self, new_stocks):
+        """Update the widget with new stock data"""
+        self.stocks = new_stocks
+        self.update_stock_items()
+        
+        # Recalculate appropriate height
+        min_content_height = 100
+        stock_item_height = 65
+        action_height = 66
+        
+        content_height = len(self.stocks) * stock_item_height if self.stocks else min_content_height
+        total_height = content_height + action_height + 20
+        
+        # Update height based on content
+        ideal_height = min(350, max(180, total_height))
+        self.stocks_scroll.setMinimumHeight(ideal_height)
+        self.stocks_scroll.setMaximumHeight(ideal_height)
 
 
 
@@ -803,6 +828,8 @@ class StockTable(QTableWidget):
 
             # Change
             change_value = float(stock["change"])
+            # Make it into an integer
+            change_value = int(change_value)
             change_text = f"{stock['change']}%" if change_value < 0 else f"+{stock['change']}%"
             change_item = QTableWidgetItem(change_text)
             change_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
@@ -1929,49 +1956,8 @@ class DashboardPage(QWidget):
             print("Warning: owned_stocks widget not found")
             return
         
-        # Find the stocks container within the OwnedStocksWidget
-        stocks_scroll = self.owned_stocks.findChild(QScrollArea)
-        if not stocks_scroll:
-            print("Warning: Could not find stocks scroll area")
-            return
-        
-        stocks_container = stocks_scroll.widget()
-        if not stocks_container:
-            print("Warning: Could not find stocks container")
-            return
-        
-        stocks_layout = stocks_container.layout()
-        if not stocks_layout:
-            print("Warning: Stocks container has no layout")
-            return
-        
-        # Clear existing stock items
-        for i in reversed(range(stocks_layout.count())):
-            widget = stocks_layout.itemAt(i).widget()
-            if isinstance(widget, StockItem):
-                stocks_layout.removeWidget(widget)
-                widget.deleteLater()
-        
-        # Add new stock items
-        if not ui_stocks:
-            # Show empty state
-            empty_label = QLabel("You don't have any stocks yet")
-            empty_label.setStyleSheet(f"""
-                color: {ColorPalette.TEXT_SECONDARY};
-                font-size: 14px;
-                text-align: center;
-                padding: 30px;
-            """)
-            empty_label.setAlignment(Qt.AlignCenter)
-            stocks_layout.addWidget(empty_label)
-        else:
-            # Show actual stocks
-            for i, stock in enumerate(ui_stocks):
-                item = StockItem(stock, is_last=(i == len(ui_stocks) - 1))
-                stocks_layout.addWidget(item)
-        
-        # Add spacer to push items to top
-        stocks_layout.addStretch(1)
+        # Simply pass the new stocks to the OwnedStocksWidget's update_stocks method
+        self.owned_stocks.update_stocks(ui_stocks)
     
     def _update_recent_transactions(self):
         """Update the recent transactions widget with new data"""
@@ -2102,9 +2088,6 @@ class MainWindow(QWidget):
                 font-size: 12px;
             }}
         """)
-
-        # Load fonts
-        load_fonts()
 
         # Main layout
         self.main_layout = QHBoxLayout(self)
