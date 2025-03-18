@@ -815,7 +815,7 @@ class StockSearchWindow(QWidget):
         super().__init__(parent)
         print("StockSearchWindow")
         self.setWindowTitle("Stock Search")
-        self.setMinimumSize(800, 600)
+        self.setMinimumSize(800, 900)
         print("User ID: ", firebaseId)
         self.firebaseId = firebaseId
         

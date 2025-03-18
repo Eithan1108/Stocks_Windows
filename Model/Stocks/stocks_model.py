@@ -153,12 +153,11 @@ class StocksModel:
 
     def get_stock_history(self, symbol, now_date):
         """Get historical data for a stock"""
-        last_week = now_date - timedelta(days=7)
+        last_week = "1-1-2025"
         # Format to YYYY-MM-DD
-        last_week_str = last_week.strftime("%Y-%m-%d")
         now_date_str = now_date.strftime("%Y-%m-%d")
         try:
-            response = requests.get(f"http://localhost:5000/api/stocks/history?ticker={symbol}&startDate={last_week_str}&endDate={now_date_str}")
+            response = requests.get(f"http://localhost:5000/api/stocks/history?ticker={symbol}&startDate={last_week}&endDate={now_date_str}")
             if response.status_code == 200:
                 data = response.json()
                 print(f"API response for get_stock_history: {data}")
