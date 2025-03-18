@@ -8,7 +8,7 @@ from PySide6.QtWidgets import (QApplication, QWidget, QVBoxLayout, QPushButton, 
                                QTableWidget, QTableWidgetItem, QHeaderView, QLineEdit, QComboBox, 
                                QTabWidget, QStackedWidget, QBoxLayout, QToolButton, QMenu)
 from PySide6.QtGui import (QColor, QAction, QFont, QPainter, QLinearGradient, QBrush, QPen,
-                           QFontMetrics, QIcon, QPixmap, QCursor, QPainterPath)
+                           QFontMetrics, QIcon, QPixmap, QCursor, QPainterPath, QRadialGradient)
 from PySide6.QtCore import (Qt, QSize, QRect, QTimer, QEvent, QPoint, QPointF, 
                             QPropertyAnimation, Signal)
 
@@ -78,12 +78,16 @@ class TransactionsPage(QWidget):
     def _create_header(self):
         """Create a header with transaction summary and key actions"""
         header = QFrame()
-        header.setMinimumHeight(80)
+        header.setMinimumHeight(130)  # Increased height for card layout
         header.setStyleSheet("background-color: transparent;")
         
-        header_layout = QHBoxLayout(header)
+        # Main layout
+        header_layout = QVBoxLayout(header)
         header_layout.setContentsMargins(20, 15, 20, 15)
-        header_layout.setSpacing(20)
+        header_layout.setSpacing(15)
+        
+        # Title and subtitle row
+        title_row = QHBoxLayout()
         
         # Title and subtitle - same styling as main window
         title_layout = QVBoxLayout()
@@ -98,51 +102,167 @@ class TransactionsPage(QWidget):
         title_layout.addWidget(title)
         title_layout.addWidget(subtitle)
         
-        # Transaction metrics
-        metrics_layout = QHBoxLayout()
-        metrics_layout.setSpacing(20)
+        # Period selector (new)
+        period_selector = QComboBox()
+        period_selector.addItems(["Last 30 Days", "Last 90 Days", "Last 6 Months", "Year to Date", "All Time"])
+        period_selector.setCurrentIndex(0)  # Default to 30 days
+        period_selector.setFixedWidth(150)
+        period_selector.setStyleSheet(f"""
+            QComboBox {{
+                background-color: {ColorPalette.BG_DARK};
+                color: {ColorPalette.TEXT_PRIMARY};
+                border: 1px solid {ColorPalette.BORDER_DARK};
+                border-radius: 6px;
+                padding: 6px 10px;
+            }}
+            QComboBox::drop-down {{
+                border: none;
+                width: 20px;
+            }}
+        """)
         
-        # Calculate metrics dynamically
+        title_row.addLayout(title_layout)
+        title_row.addStretch(1)
+        title_row.addWidget(period_selector)
+        
+        header_layout.addLayout(title_row)
+        
+        # KPI Cards in horizontal layout
+        kpi_layout = QHBoxLayout()
+        kpi_layout.setSpacing(15)
+        
+        # Calculate metrics dynamically from transaction data
         total_transactions = len(self.user_transactions)
-        total_deposits = sum(1 for tx in self.user_transactions if tx['transactionType'].lower() == 'deposit')
-        total_withdrawals = sum(1 for tx in self.user_transactions if tx['transactionType'].lower() == 'withdrawal')
+        buy_orders = sum(1 for tx in self.user_transactions if tx['transactionType'].lower() == 'buy')
+        sell_orders = sum(1 for tx in self.user_transactions if tx['transactionType'].lower() == 'sell')
+        total_volume = sum(tx.get('price', 0) * tx.get('quantity', 0) 
+                        for tx in self.user_transactions 
+                        if 'price' in tx and 'quantity' in tx)
         
-        metrics = [
-            {"label": "Total Transactions", "value": str(total_transactions)},
-            {"label": "Buying Power", "value": f"${self.balance:,.2f}" if self.balance is not None else "N/A"},
-            {"label": "Pending Orders", "value": str(total_withdrawals)}
+        # KPI card data
+        kpi_cards = [
+            {
+                "title": "Total Transactions",
+                "value": f"{total_transactions:,}",
+                "icon": "Icons/transaction.png",
+                "color": ColorPalette.ACCENT_PRIMARY,
+                "subtitle": "Last 30 days",
+                "change": "+12%"
+            },
+            {
+                "title": "Buying Power",
+                "value": f"${self.balance:,.2f}" if self.balance is not None else "N/A",
+                "icon": "Icons/wallet.png",
+                "color": ColorPalette.ACCENT_SUCCESS,
+                "subtitle": "Available to trade",
+                "change": None
+            },
+            {
+                "title": "Transaction Volume",
+                "value": f"${total_volume:,.2f}",
+                "icon": "Icons/chart.png",
+                "color": ColorPalette.ACCENT_INFO,
+                "subtitle": "Total traded value",
+                "change": "-5.2%"
+            },
+            {
+                "title": "Buy/Sell Ratio",
+                "value": f"{buy_orders:,}/{sell_orders:,}",
+                "icon": "Icons/exchange.png",
+                "color": ColorPalette.ACCENT_WARNING,
+                "subtitle": "Buy vs. Sell orders",
+                "change": "+3.1%"
+            }
         ]
         
-        for metric in metrics:
-            metric_widget = QWidget()
-            metric_layout = QVBoxLayout(metric_widget)
-            metric_layout.setContentsMargins(0, 0, 0, 0)
-            metric_layout.setSpacing(4)
+        # Create each KPI card
+        for kpi in kpi_cards:
+            # Card frame
+            card = QFrame()
+            card.setStyleSheet(f"""
+                background-color: {ColorPalette.BG_CARD};
+                border-radius: 12px;
+            """)
             
-            label = QLabel(metric["label"])
-            label.setStyleSheet(f"color: {ColorPalette.TEXT_SECONDARY}; font-size: 12px;")
+            # Card shadow
+            shadow = QGraphicsDropShadowEffect()
+            shadow.setBlurRadius(15)
+            shadow.setColor(QColor(0, 0, 0, 30))
+            shadow.setOffset(0, 3)
+            card.setGraphicsEffect(shadow)
             
-            value = QLabel(metric["value"])
-            value.setStyleSheet(f"""
+            # Card layout
+            card_layout = QHBoxLayout(card)
+            card_layout.setContentsMargins(15, 12, 15, 12)
+            card_layout.setSpacing(12)
+            
+            # Icon placeholder (you would replace with actual icon)
+            icon_frame = QFrame()
+            icon_frame.setFixedSize(36, 36)
+            icon_frame.setStyleSheet(f"""
+                background-color: {kpi['color']}30;
+                border-radius: 8px;
+            """)
+            icon_layout = QVBoxLayout(icon_frame)
+            icon_layout.setContentsMargins(0, 0, 0, 0)
+            icon_layout.setAlignment(Qt.AlignCenter)
+            
+            # Uncomment and use if you have actual icons
+            # icon_label = QLabel()
+            # icon_pixmap = QPixmap(kpi['icon'])
+            # icon_label.setPixmap(icon_pixmap.scaled(20, 20, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+            # icon_layout.addWidget(icon_label)
+            
+            # Text content
+            text_layout = QVBoxLayout()
+            text_layout.setSpacing(2)
+            
+            # Title
+            title_label = QLabel(kpi["title"])
+            title_label.setStyleSheet(f"color: {ColorPalette.TEXT_SECONDARY}; font-size: 12px;")
+            
+            # Value and change row
+            value_row = QHBoxLayout()
+            value_row.setSpacing(6)
+            
+            value_label = QLabel(kpi["value"])
+            value_label.setStyleSheet(f"""
                 color: {ColorPalette.TEXT_PRIMARY}; 
-                font-size: 16px; 
+                font-size: 18px; 
                 font-weight: bold;
             """)
             
-            metric_layout.addWidget(label)
-            metric_layout.addWidget(value)
+            value_row.addWidget(value_label)
             
-            metrics_layout.addWidget(metric_widget)
+            # Add change indicator if present
+            if kpi["change"]:
+                change_label = QLabel(kpi["change"])
+                
+                # Set color based on if change is positive or negative
+                change_color = ColorPalette.ACCENT_SUCCESS if kpi["change"].startswith("+") else ColorPalette.ACCENT_DANGER
+                change_label.setStyleSheet(f"color: {change_color}; font-size: 12px;")
+                
+                value_row.addWidget(change_label)
+            
+            value_row.addStretch()
+            
+            # Subtitle
+            subtitle_label = QLabel(kpi["subtitle"])
+            subtitle_label.setStyleSheet(f"color: {ColorPalette.TEXT_SECONDARY}; font-size: 11px;")
+            
+            # Add widgets to text layout
+            text_layout.addWidget(title_label)
+            text_layout.addLayout(value_row)
+            text_layout.addWidget(subtitle_label)
+            
+            # Add to card layout
+            card_layout.addWidget(icon_frame)
+            card_layout.addLayout(text_layout)
+            
+            # Add card to layout with equal stretch
+            kpi_layout.addWidget(card, 1)
         
-        # Action buttons - same styling as main window
-        action_layout = QHBoxLayout()
-        action_layout.setSpacing(10)
-
-        # Combine layouts
-        header_layout.addLayout(title_layout)
-        header_layout.addStretch(1)
-        header_layout.addLayout(metrics_layout)
-        header_layout.addLayout(action_layout)
+        header_layout.addLayout(kpi_layout)
         
         return header
 
@@ -257,6 +377,130 @@ class TransactionsPage(QWidget):
             # Set row height
             self.transaction_table.setRowHeight(row, 50)
 
+    def _export_transactions_to_csv(self):
+        """Export transaction data to a CSV file"""
+        try:
+            # Skip if no transactions
+            if not self.user_transactions:
+                # Show a message dialog
+                from PySide6.QtWidgets import QMessageBox
+                QMessageBox.information(self, "Export Transactions", 
+                                    "No transactions available to export.",
+                                    QMessageBox.Ok)
+                return
+
+            # Get file path from save dialog
+            from PySide6.QtWidgets import QFileDialog
+            file_path, _ = QFileDialog.getSaveFileName(
+                self,
+                "Export Transactions",
+                "transaction_history.csv",
+                "CSV Files (*.csv)"
+            )
+            
+            # Return if user cancels the dialog
+            if not file_path:
+                return
+                
+            # Add .csv extension if not provided
+            if not file_path.endswith('.csv'):
+                file_path += '.csv'
+                
+            # Convert transaction data to a consistent format for CSV export
+            export_data = []
+            
+            for tx in self.user_transactions:
+                # Process the date to a consistent format
+                try:
+                    date_str = tx['date']
+                    
+                    # Handle multiple date formats
+                    if 'T' in date_str:
+                        # ISO format
+                        if '.' in date_str:  # Has microseconds
+                            base, ms_part = date_str.split('.')
+                            # Remove timezone info and Z if present
+                            ms_part = ms_part.rstrip('Z').split('+')[0].split('-')[0]
+                            date_str = f"{base}.{ms_part}"
+                            
+                        try:
+                            tx_date = datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%S.%f")
+                        except ValueError:
+                            try:
+                                tx_date = datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%S")
+                            except ValueError:
+                                tx_date = datetime.now()  # Fallback
+                    else:
+                        # Other formats
+                        for fmt in ["%Y-%m-%d", "%m/%d/%Y", "%b %d, %Y"]:
+                            try:
+                                tx_date = datetime.strptime(date_str, fmt)
+                                break
+                            except ValueError:
+                                continue
+                        else:
+                            tx_date = datetime.now()  # Fallback
+                    
+                    formatted_date = tx_date.strftime("%Y-%m-%d %H:%M:%S")
+                except Exception as e:
+                    print(f"Error formatting date: {e}")
+                    formatted_date = tx.get('date', 'Unknown')
+                
+                # Calculate the total amount if price and quantity are available
+                total_amount = 0
+                if 'price' in tx and 'quantity' in tx and tx['price'] is not None and tx['quantity'] is not None:
+                    total_amount = tx['price'] * tx['quantity']
+                elif 'amount' in tx and tx['amount'] is not None:
+                    total_amount = tx['amount']
+                
+                # Get stock name if available
+                stock_symbol = tx.get('stockSymbol', '')
+                stock_name = stock_symbol
+                
+                if stock_symbol and self.stocks_the_user_has and stock_symbol in self.stocks_the_user_has:
+                    stock_name = self.stocks_the_user_has[stock_symbol].get('name', stock_symbol)
+                
+                # Create a row for the CSV
+                row = {
+                    'Date': formatted_date,
+                    'Type': tx.get('transactionType', 'Unknown'),
+                    'Symbol': stock_symbol,
+                    'Company': stock_name if stock_name != stock_symbol else '',
+                    'Quantity': tx.get('quantity', ''),
+                    'Price': f"${tx.get('price', 0):.2f}" if 'price' in tx and tx['price'] is not None else '',
+                    'Total': f"${total_amount:.2f}" if total_amount else '',
+                    'Status': 'Completed'  # Default status
+                }
+                
+                export_data.append(row)
+            
+            # Write to CSV file
+            import csv
+            with open(file_path, 'w', newline='', encoding='utf-8') as csvfile:
+                # Define CSV columns
+                fieldnames = ['Date', 'Type', 'Symbol', 'Company', 'Quantity', 'Price', 'Total', 'Status']
+                
+                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                writer.writeheader()
+                
+                for row in export_data:
+                    writer.writerow(row)
+            
+            # Show success message
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.information(self, "Export Successful", 
+                                f"Transaction history exported to {file_path}",
+                                QMessageBox.Ok)
+                                
+        except Exception as e:
+            # Show error message
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.critical(self, "Export Error", 
+                                f"Failed to export transactions: {str(e)}",
+                                QMessageBox.Ok)
+            print(f"Error exporting transactions: {e}")
+
+    # Update the _setup_transaction_history_section to connect the export button
     def _setup_transaction_history_section(self):
         """Create transaction history section with table matching app style"""
         # Create card with same styling as main window
@@ -280,22 +524,55 @@ class TransactionsPage(QWidget):
         title = QLabel("Recent Transactions")
         title.setStyleSheet(GlobalStyle.SUBHEADER_STYLE)
         
-        # Search box
+        # Filter dropdown to replace search box
+        filter_combo = QComboBox()
+        filter_combo.addItems(["All Transactions", "Buy Orders", "Sell Orders", "Deposits", "Withdrawals", "Dividends"])
+        filter_combo.setFixedWidth(200)
+        filter_combo.setStyleSheet(f"""
+            QComboBox {{
+                background-color: {ColorPalette.BG_DARK};
+                color: {ColorPalette.TEXT_PRIMARY};
+                border: none;
+                border-radius: 6px;
+                padding: 8px 12px;
+                min-height: 36px;
+            }}
+            QComboBox::drop-down {{
+                border: none;
+                width: 24px;
+            }}
+            QComboBox::down-arrow {{
+                image: url(Icons/dropdown_arrow.png);
+                width: 12px;
+                height: 12px;
+            }}
+            QComboBox QAbstractItemView {{
+                background-color: {ColorPalette.BG_DARK};
+                color: {ColorPalette.TEXT_PRIMARY};
+                border: 1px solid {ColorPalette.BORDER_DARK};
+                border-radius: 6px;
+                selection-background-color: {ColorPalette.ACCENT_PRIMARY}30;
+            }}
+        """)
+        
         search_box = QLineEdit()
         search_box.setPlaceholderText("Search transactions...")
-        search_box.setFixedWidth(250)
+        search_box.setFixedWidth(200)
         search_box.setStyleSheet(f"""
             QLineEdit {{
                 background-color: {ColorPalette.BG_DARK};
                 color: {ColorPalette.TEXT_PRIMARY};
                 border: none;
                 border-radius: 6px;
-                padding: 5px 10px;
+                padding: 8px 12px;
+                min-height: 36px;
             }}
         """)
         
         header_layout.addWidget(title)
         header_layout.addStretch()
+        header_layout.addWidget(filter_combo)
+        header_layout.addSpacing(10)
         header_layout.addWidget(search_box)
         
         history_layout.addLayout(header_layout)
@@ -304,7 +581,7 @@ class TransactionsPage(QWidget):
         transactions_container = QFrame()
         transactions_container.setStyleSheet(f"""
             background-color: {ColorPalette.CARD_BG_DARKER};
-            border-radius: 8px;
+            border-radius: 12px;  /* Increased radius for modern look */
         """)
         
         # Container layout
@@ -317,18 +594,19 @@ class TransactionsPage(QWidget):
         self.transaction_table.setColumnCount(6)
         self.transaction_table.setHorizontalHeaderLabels(["Date", "Type", "Stock", "Shares/Price", "Total", "Status"])
         
-        # Table styling to match other tables in the app
+        # Table styling to match other tables in the app but with modernized look
         self.transaction_table.setShowGrid(False)
-        self.transaction_table.setAlternatingRowColors(False)
+        self.transaction_table.setAlternatingRowColors(True)  # Enable alternating row colors
         self.transaction_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.transaction_table.horizontalHeader().setStyleSheet(f"""
             QHeaderView::section {{
                 background-color: {ColorPalette.CARD_BG_DARKER};
                 color: {ColorPalette.TEXT_SECONDARY};
                 border: none;
-                padding: 10px;
+                padding: 12px;  /* Increased padding */
                 font-weight: bold;
                 text-align: left;
+                border-bottom: 2px solid {ColorPalette.BORDER_DARK};  /* More prominent header */
             }}
         """)
         self.transaction_table.setStyleSheet(f"""
@@ -336,12 +614,13 @@ class TransactionsPage(QWidget):
                 background-color: transparent;
                 color: {ColorPalette.TEXT_PRIMARY};
                 border: none;
-                selection-background-color: {ColorPalette.ACCENT_PRIMARY}30;
+                selection-background-color: {ColorPalette.ACCENT_PRIMARY}20;  /* Lighter selection */
                 selection-color: {ColorPalette.TEXT_PRIMARY};
+                alternate-background-color: {ColorPalette.BG_DARK}30;  /* Subtle alternating color */
             }}
             QTableWidget::item {{
-                border-bottom: 1px solid {ColorPalette.BORDER_DARK};
-                padding: 10px;
+                border-bottom: 1px solid {ColorPalette.BORDER_DARK}40;  /* Lighter border */
+                padding: 12px;  /* Increased padding */
             }}
             QTableWidget QTableCornerButton::section {{
                 background-color: {ColorPalette.CARD_BG_DARKER};
@@ -357,19 +636,22 @@ class TransactionsPage(QWidget):
         # Add table to container layout
         container_layout.addWidget(self.transaction_table)
         
-        # Action buttons - same as other sections in the app
+        # Action buttons - updated with more emphasis on primary action
         action_layout = QHBoxLayout()
         action_layout.setContentsMargins(15, 15, 15, 15)
         
         view_all_btn = QPushButton("View All Transactions")
-        view_all_btn.setStyleSheet(GlobalStyle.SECONDARY_BUTTON)
+        view_all_btn.setStyleSheet(GlobalStyle.PRIMARY_BUTTON)  # Changed to primary button for emphasis
         view_all_btn.setCursor(Qt.PointingHandCursor)
         view_all_btn.setFixedHeight(36)
         
-        export_btn = QPushButton("Export")
+        export_btn = QPushButton("Export CSV")  # Added file format for clarity
         export_btn.setStyleSheet(GlobalStyle.SECONDARY_BUTTON)
         export_btn.setCursor(Qt.PointingHandCursor)
         export_btn.setFixedHeight(36)
+        
+        # Connect the export button to the export function
+        export_btn.clicked.connect(self._export_transactions_to_csv)
         
         action_layout.addWidget(view_all_btn)
         action_layout.addStretch()
@@ -392,11 +674,11 @@ class TransactionsPage(QWidget):
         summary_card = self._create_transaction_summary_card()
         
         # Transaction Metrics Card
-        metrics_card = self._create_transaction_metrics_card()
+
         
         # Add cards to section layout
-        section_layout.addWidget(summary_card, 1)
-        section_layout.addWidget(metrics_card, 1)
+        section_layout.addWidget(summary_card, 2)
+
         
         self.content_layout.addWidget(section)
         
@@ -405,7 +687,7 @@ class TransactionsPage(QWidget):
         self.analysis_section_layout = section_layout
     
     def _create_transaction_summary_card(self):
-        """Create transaction summary card with visualization"""
+        """Create transaction summary card with improved visualization"""
         # Card with same styling as main window
         card = QFrame()
         card.setStyleSheet(GlobalStyle.CARD_STYLE)
@@ -422,53 +704,103 @@ class TransactionsPage(QWidget):
         card_layout.setContentsMargins(20, 20, 20, 20)
         card_layout.setSpacing(15)
         
-        # Title
+        # Header with title and period selector
+        header_layout = QHBoxLayout()
+        
         title = QLabel("Transaction Summary")
         title.setStyleSheet(GlobalStyle.SUBHEADER_STYLE)
-        card_layout.addWidget(title)
+        
+        period_selector = QComboBox()
+        period_selector.addItems(["1W", "1M", "3M", "6M", "1Y", "All"])
+        period_selector.setCurrentIndex(1)  # Default to 1 month
+        period_selector.setFixedWidth(100)
+        period_selector.setStyleSheet(f"""
+            QComboBox {{
+                background-color: {ColorPalette.BG_DARK};
+                color: {ColorPalette.TEXT_PRIMARY};
+                border: 1px solid {ColorPalette.BORDER_DARK};
+                border-radius: 6px;
+                padding: 4px 8px;
+            }}
+            QComboBox::drop-down {{
+                border: none;
+                width: 20px;
+            }}
+        """)
+        
+        header_layout.addWidget(title)
+        header_layout.addStretch()
+        header_layout.addWidget(period_selector)
+        
+        card_layout.addLayout(header_layout)
         
         # Summary container
         summary_container = QFrame()
         summary_container.setStyleSheet(f"""
             background-color: {ColorPalette.CARD_BG_DARKER};
-            border-radius: 8px;
+            border-radius: 12px;
         """)
         
         container_layout = QVBoxLayout(summary_container)
         container_layout.setContentsMargins(20, 20, 20, 20)
-        container_layout.setSpacing(15)
+        container_layout.setSpacing(20)
         
-        # Buy vs Sell visualization - pie chart
+        # Modern donut chart with gradient
         chart_label = QLabel()
-        chart_label.setFixedHeight(200)
+        chart_label.setFixedHeight(220)
         
-        # Create buy/sell pie chart
-        chart_pixmap = QPixmap(200, 200)
+        # Create buy/sell donut chart with gradient
+        chart_pixmap = QPixmap(220, 220)
         chart_pixmap.fill(Qt.transparent)
         
         painter = QPainter(chart_pixmap)
         painter.setRenderHint(QPainter.Antialiasing)
         
-        # Draw pie slices
-        center = QPoint(100, 100)
-        radius = 80
+        # Draw donut chart with gradients
+        center = QPoint(110, 110)
+        outer_radius = 90
+        inner_radius = 45
         
-        # Buy (65%)
+        # Calculate actual percentages from transaction data
+        buy_count = sum(1 for tx in self.user_transactions if tx['transactionType'].lower() == 'buy')
+        sell_count = sum(1 for tx in self.user_transactions if tx['transactionType'].lower() == 'sell')
+        
+        total_count = buy_count + sell_count
+        if total_count == 0:
+            buy_percent = 50
+            sell_percent = 50
+        else:
+            buy_percent = (buy_count / total_count) * 100
+            sell_percent = (sell_count / total_count) * 100
+        
+        # Buy slice with gradient (green)
+        buy_gradient = QLinearGradient(center.x() - outer_radius, center.y(), center.x() + outer_radius, center.y())
+        buy_gradient.setColorAt(0, QColor(ColorPalette.ACCENT_SUCCESS))
+        buy_gradient.setColorAt(1, QColor("#60c5ba"))  # Lighter teal-green
+        
+        painter.setBrush(buy_gradient)
         painter.setPen(Qt.NoPen)
-        painter.setBrush(QColor(ColorPalette.ACCENT_SUCCESS))
-        painter.drawPie(center.x() - radius, center.y() - radius, 
-                      radius * 2, radius * 2, 
-                      0, int(65 * 360 * 16 / 100))
+        painter.drawPie(center.x() - outer_radius, center.y() - outer_radius, 
+                    outer_radius * 2, outer_radius * 2, 
+                    0, int(buy_percent * 360 * 16 / 100))
         
-        # Sell (35%)
-        painter.setBrush(QColor(ColorPalette.ACCENT_DANGER))
-        painter.drawPie(center.x() - radius, center.y() - radius, 
-                      radius * 2, radius * 2, 
-                      int(65 * 360 * 16 / 100), int(35 * 360 * 16 / 100))
+        # Sell slice with gradient (red)
+        sell_gradient = QLinearGradient(center.x() - outer_radius, center.y(), center.x() + outer_radius, center.y())
+        sell_gradient.setColorAt(0, QColor(ColorPalette.ACCENT_DANGER))
+        sell_gradient.setColorAt(1, QColor("#ff7e67"))  # Lighter coral-red
         
-        # Draw inner circle for donut effect
-        painter.setBrush(QColor(ColorPalette.CARD_BG_DARKER))
-        painter.drawEllipse(center, radius * 0.6, radius * 0.6)
+        painter.setBrush(sell_gradient)
+        painter.drawPie(center.x() - outer_radius, center.y() - outer_radius, 
+                    outer_radius * 2, outer_radius * 2, 
+                    int(buy_percent * 360 * 16 / 100), int(sell_percent * 360 * 16 / 100))
+        
+        # Draw inner circle for donut effect with glassy effect
+        inner_gradient = QRadialGradient(center, inner_radius)
+        inner_gradient.setColorAt(0, QColor(ColorPalette.CARD_BG_DARKER).lighter(110))
+        inner_gradient.setColorAt(1, QColor(ColorPalette.CARD_BG_DARKER))
+        
+        painter.setBrush(inner_gradient)
+        painter.drawEllipse(center, inner_radius, inner_radius)
         
         # Add center text
         painter.setPen(QColor(ColorPalette.TEXT_PRIMARY))
@@ -476,7 +808,15 @@ class TransactionsPage(QWidget):
         font.setBold(True)
         font.setPointSize(12)
         painter.setFont(font)
-        painter.drawText(QRect(center.x() - 50, center.y() - 15, 100, 30), Qt.AlignCenter, "Buy/Sell Ratio")
+        
+        # Show the buy percentage as the main value
+        painter.drawText(QRect(center.x() - 40, center.y() - 25, 80, 25), Qt.AlignCenter, f"{buy_percent:.1f}%")
+        
+        font.setPointSize(9)
+        font.setBold(False)
+        painter.setFont(font)
+        painter.setPen(QColor(ColorPalette.TEXT_SECONDARY))
+        painter.drawText(QRect(center.x() - 40, center.y() + 5, 80, 20), Qt.AlignCenter, "Buy Orders")
         
         painter.end()
         chart_label.setPixmap(chart_pixmap)
@@ -484,126 +824,122 @@ class TransactionsPage(QWidget):
         
         container_layout.addWidget(chart_label)
         
-        # Legend and stats
-        legend_layout = QHBoxLayout()
+        # Legend and stats in a cleaner layout
+        stats_layout = QHBoxLayout()
+        stats_layout.setSpacing(30)
         
-        # Buy legend
-        buy_layout = QVBoxLayout()
-        
-        buy_header = QHBoxLayout()
-        buy_color = QFrame()
-        buy_color.setFixedSize(12, 12)
-        buy_color.setStyleSheet(f"""
-            background-color: {ColorPalette.ACCENT_SUCCESS};
-            border-radius: 2px;
+        # Buy stats in a clean card
+        buy_card = QFrame()
+        buy_card.setStyleSheet(f"""
+            background-color: {ColorPalette.BG_DARK}50;
+            border-radius: 8px;
         """)
         
+        buy_layout = QVBoxLayout(buy_card)
+        buy_layout.setContentsMargins(15, 12, 15, 12)
+        buy_layout.setSpacing(8)
+        
+        buy_header = QHBoxLayout()
         buy_label = QLabel("Buy Orders")
         buy_label.setStyleSheet(f"color: {ColorPalette.TEXT_PRIMARY}; font-weight: bold;")
         
-        buy_header.addWidget(buy_color)
-        buy_header.addSpacing(8)
         buy_header.addWidget(buy_label)
-        buy_header.addStretch()
-        
-        buy_stats = QGridLayout()
-        buy_stats.setVerticalSpacing(5)
-        buy_stats.setHorizontalSpacing(10)
-        
-        buy_count_label = QLabel("Count:")
-        buy_count_label.setStyleSheet(f"color: {ColorPalette.TEXT_SECONDARY}; font-size: 12px;")
-        buy_count_value = QLabel("165")
-        buy_count_value.setStyleSheet(f"color: {ColorPalette.TEXT_PRIMARY};")
-        
-        buy_amount_label = QLabel("Total Amount:")
-        buy_amount_label.setStyleSheet(f"color: {ColorPalette.TEXT_SECONDARY}; font-size: 12px;")
-        buy_amount_value = QLabel("$148,532.75")
-        buy_amount_value.setStyleSheet(f"color: {ColorPalette.TEXT_PRIMARY};")
-        
-        buy_stats.addWidget(buy_count_label, 0, 0)
-        buy_stats.addWidget(buy_count_value, 0, 1)
-        buy_stats.addWidget(buy_amount_label, 1, 0)
-        buy_stats.addWidget(buy_amount_value, 1, 1)
         
         buy_layout.addLayout(buy_header)
-        buy_layout.addLayout(buy_stats)
         
-        # Sell legend
-        sell_layout = QVBoxLayout()
+        # Calculate buy order statistics
+        buy_orders = [tx for tx in self.user_transactions if tx['transactionType'].lower() == 'buy']
+        buy_total = sum(tx.get('price', 0) * tx.get('quantity', 0) 
+                        for tx in buy_orders 
+                        if 'price' in tx and 'quantity' in tx)
         
-        sell_header = QHBoxLayout()
-        sell_color = QFrame()
-        sell_color.setFixedSize(12, 12)
-        sell_color.setStyleSheet(f"""
-            background-color: {ColorPalette.ACCENT_DANGER};
-            border-radius: 2px;
+        # Buy stats
+        buy_count_row = QHBoxLayout()
+        buy_count_label = QLabel("Count:")
+        buy_count_label.setStyleSheet(f"color: {ColorPalette.TEXT_SECONDARY}; font-size: 12px;")
+        buy_count_value = QLabel(f"{len(buy_orders)}")
+        buy_count_value.setStyleSheet(f"color: {ColorPalette.TEXT_PRIMARY}; font-weight: bold;")
+        
+        buy_count_row.addWidget(buy_count_label)
+        buy_count_row.addStretch()
+        buy_count_row.addWidget(buy_count_value)
+        
+        buy_amount_row = QHBoxLayout()
+        buy_amount_label = QLabel("Total Amount:")
+        buy_amount_label.setStyleSheet(f"color: {ColorPalette.TEXT_SECONDARY}; font-size: 12px;")
+        buy_amount_value = QLabel(f"${buy_total:,.2f}")
+        buy_amount_value.setStyleSheet(f"color: {ColorPalette.TEXT_PRIMARY}; font-weight: bold;")
+        
+        buy_amount_row.addWidget(buy_amount_label)
+        buy_amount_row.addStretch()
+        buy_amount_row.addWidget(buy_amount_value)
+        
+        buy_layout.addLayout(buy_count_row)
+        buy_layout.addLayout(buy_amount_row)
+        
+        # Sell stats in a clean card
+        sell_card = QFrame()
+        sell_card.setStyleSheet(f"""
+            background-color: {ColorPalette.BG_DARK}50;
+            border-radius: 8px;
         """)
         
+        sell_layout = QVBoxLayout(sell_card)
+        sell_layout.setContentsMargins(15, 12, 15, 12)
+        sell_layout.setSpacing(8)
+        
+        sell_header = QHBoxLayout()
         sell_label = QLabel("Sell Orders")
         sell_label.setStyleSheet(f"color: {ColorPalette.TEXT_PRIMARY}; font-weight: bold;")
         
-        sell_header.addWidget(sell_color)
-        sell_header.addSpacing(8)
         sell_header.addWidget(sell_label)
-        sell_header.addStretch()
-        
-        sell_stats = QGridLayout()
-        sell_stats.setVerticalSpacing(5)
-        sell_stats.setHorizontalSpacing(10)
-        
-        sell_count_label = QLabel("Count:")
-        sell_count_label.setStyleSheet(f"color: {ColorPalette.TEXT_SECONDARY}; font-size: 12px;")
-        sell_count_value = QLabel("89")
-        sell_count_value.setStyleSheet(f"color: {ColorPalette.TEXT_PRIMARY};")
-        
-        sell_amount_label = QLabel("Total Amount:")
-        sell_amount_label.setStyleSheet(f"color: {ColorPalette.TEXT_SECONDARY}; font-size: 12px;")
-        sell_amount_value = QLabel("$82,947.18")
-        sell_amount_value.setStyleSheet(f"color: {ColorPalette.TEXT_PRIMARY};")
-        
-        sell_stats.addWidget(sell_count_label, 0, 0)
-        sell_stats.addWidget(sell_count_value, 0, 1)
-        sell_stats.addWidget(sell_amount_label, 1, 0)
-        sell_stats.addWidget(sell_amount_value, 1, 1)
         
         sell_layout.addLayout(sell_header)
-        sell_layout.addLayout(sell_stats)
         
-        legend_layout.addLayout(buy_layout)
-        legend_layout.addSpacing(30)
-        legend_layout.addLayout(sell_layout)
+        # Calculate sell order statistics
+        sell_orders = [tx for tx in self.user_transactions if tx['transactionType'].lower() == 'sell']
+        sell_total = sum(tx.get('price', 0) * tx.get('quantity', 0) 
+                        for tx in sell_orders 
+                        if 'price' in tx and 'quantity' in tx)
         
-        container_layout.addLayout(legend_layout)
+        # Sell stats
+        sell_count_row = QHBoxLayout()
+        sell_count_label = QLabel("Count:")
+        sell_count_label.setStyleSheet(f"color: {ColorPalette.TEXT_SECONDARY}; font-size: 12px;")
+        sell_count_value = QLabel(f"{len(sell_orders)}")
+        sell_count_value.setStyleSheet(f"color: {ColorPalette.TEXT_PRIMARY}; font-weight: bold;")
         
-        # Summary metrics
-        divider = QFrame()
-        divider.setFrameShape(QFrame.HLine)
-        divider.setStyleSheet(f"background-color: {ColorPalette.BORDER_DARK};")
-        divider.setFixedHeight(1)
+        sell_count_row.addWidget(sell_count_label)
+        sell_count_row.addStretch()
+        sell_count_row.addWidget(sell_count_value)
         
-        container_layout.addWidget(divider)
+        sell_amount_row = QHBoxLayout()
+        sell_amount_label = QLabel("Total Amount:")
+        sell_amount_label.setStyleSheet(f"color: {ColorPalette.TEXT_SECONDARY}; font-size: 12px;")
+        sell_amount_value = QLabel(f"${sell_total:,.2f}")
+        sell_amount_value.setStyleSheet(f"color: {ColorPalette.TEXT_PRIMARY}; font-weight: bold;")
         
-        # Net cash flow
-        cashflow_layout = QHBoxLayout()
+        sell_amount_row.addWidget(sell_amount_label)
+        sell_amount_row.addStretch()
+        sell_amount_row.addWidget(sell_amount_value)
         
-        cashflow_label = QLabel("Net Cash Flow:")
-        cashflow_label.setStyleSheet(f"color: {ColorPalette.TEXT_PRIMARY}; font-weight: bold;")
+        sell_layout.addLayout(sell_count_row)
+        sell_layout.addLayout(sell_amount_row)
         
-        cashflow_value = QLabel("-$65,585.57")
-        cashflow_value.setStyleSheet(f"color: {ColorPalette.ACCENT_DANGER}; font-weight: bold; font-size: 18px;")
+        stats_layout.addWidget(buy_card, 1)
+        stats_layout.addWidget(sell_card, 1)
         
-        cashflow_layout.addWidget(cashflow_label)
-        cashflow_layout.addStretch()
-        cashflow_layout.addWidget(cashflow_value)
+        container_layout.addLayout(stats_layout)
         
-        container_layout.addLayout(cashflow_layout)
+
+
         
         card_layout.addWidget(summary_container)
         
         return card
     
     def _create_transaction_metrics_card(self):
-        """Create transaction metrics card with trends and insights"""
+        """Create transaction metrics card with timeline and insights based on actual data"""
         # Card with same styling as main window
         card = QFrame()
         card.setStyleSheet(GlobalStyle.CARD_STYLE)
@@ -620,142 +956,555 @@ class TransactionsPage(QWidget):
         card_layout.setContentsMargins(20, 20, 20, 20)
         card_layout.setSpacing(15)
         
-        # Title
-        title = QLabel("Transaction Metrics")
-        title.setStyleSheet(GlobalStyle.SUBHEADER_STYLE)
-        card_layout.addWidget(title)
+        # Header with title and view options
+        header_layout = QHBoxLayout()
         
-        # Metrics container
+        title = QLabel("Transaction Activity")
+        title.setStyleSheet(GlobalStyle.SUBHEADER_STYLE)
+        
+        # View toggle buttons
+        view_options = QFrame()
+        view_options.setStyleSheet(f"""
+            background-color: {ColorPalette.BG_DARK};
+            border-radius: 6px;
+        """)
+        
+        options_layout = QHBoxLayout(view_options)
+        options_layout.setContentsMargins(2, 2, 2, 2)
+        options_layout.setSpacing(0)
+        
+        count_btn = QPushButton("Count")
+        count_btn.setCheckable(True)
+        count_btn.setChecked(True)
+        count_btn.setFixedHeight(28)
+        count_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: transparent;
+                color: {ColorPalette.TEXT_SECONDARY};
+                border: none;
+                border-radius: 5px;
+                padding: 4px 12px;
+                font-size: 12px;
+            }}
+            QPushButton:checked {{
+                background-color: {ColorPalette.ACCENT_PRIMARY};
+                color: white;
+            }}
+        """)
+        
+        volume_btn = QPushButton("Volume")
+        volume_btn.setCheckable(True)
+        volume_btn.setFixedHeight(28)
+        volume_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: transparent;
+                color: {ColorPalette.TEXT_SECONDARY};
+                border: none;
+                border-radius: 5px;
+                padding: 4px 12px;
+                font-size: 12px;
+            }}
+            QPushButton:checked {{
+                background-color: {ColorPalette.ACCENT_PRIMARY};
+                color: white;
+            }}
+        """)
+        
+        options_layout.addWidget(count_btn)
+        options_layout.addWidget(volume_btn)
+        
+        header_layout.addWidget(title)
+        header_layout.addStretch()
+        header_layout.addWidget(view_options)
+        
+        card_layout.addLayout(header_layout)
+        
+        # Activity container
         metrics_container = QFrame()
         metrics_container.setStyleSheet(f"""
             background-color: {ColorPalette.CARD_BG_DARKER};
-            border-radius: 8px;
+            border-radius: 12px;
         """)
         
         container_layout = QVBoxLayout(metrics_container)
         container_layout.setContentsMargins(20, 20, 20, 20)
         container_layout.setSpacing(20)
         
-        # Transaction volume graph
-        volume_layout = QVBoxLayout()
+        # Process and analyze transaction data
+        monthly_data = self._analyze_monthly_transactions()
         
-        volume_label = QLabel("Transaction Volume by Month")
-        volume_label.setStyleSheet(f"color: {ColorPalette.TEXT_PRIMARY}; font-weight: bold;")
+        # Transaction activity timeline graph
+        timeline_graph = QLabel()
+        timeline_graph.setFixedHeight(180)
         
-        volume_graph = QLabel()
-        volume_graph.setFixedHeight(120)
-        
-        # Create bar graph for transaction volume
-        pixmap = QPixmap(500, 120)
+        # Create a timeline chart with actual data
+        pixmap = QPixmap(540, 180)
         pixmap.fill(Qt.transparent)
         
         painter = QPainter(pixmap)
         painter.setRenderHint(QPainter.Antialiasing)
         
-        # Draw bar graph
-        bar_width = 30
-        gap = 15
-        bar_count = 12  # One for each month
+        # Set up chart area
+        chart_width = 520
+        chart_height = 140
+        margin_left = 40
+        margin_top = 10
+        margin_bottom = 30
         
-        # Y-axis line
+        # Chart area background with subtle grid
+        grid_color = QColor(ColorPalette.BORDER_DARK)
+        grid_color.setAlpha(30)
+        painter.setPen(QPen(grid_color, 1, Qt.DashLine))
+        
+        # Draw grid lines
+        for i in range(5):
+            y = margin_top + i * chart_height / 4
+            painter.drawLine(margin_left, y, margin_left + chart_width, y)
+        
+        # Extract months and data from processed data
+        months = list(monthly_data.keys())
+        buy_values = [monthly_data[month]["buy_count"] for month in months]
+        sell_values = [monthly_data[month]["sell_count"] for month in months]
+        
+        # If we don't have enough data, add some placeholders to make the chart look nice
+        if len(months) < 2:
+            months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun"]
+            buy_values = [0, 0, 0, 0, 0, 0]
+            sell_values = [0, 0, 0, 0, 0, 0]
+            
+            # Add actual data if we have any
+            if monthly_data:
+                first_month = list(monthly_data.keys())[0]
+                months[0] = first_month
+                buy_values[0] = monthly_data[first_month]["buy_count"]
+                sell_values[0] = monthly_data[first_month]["sell_count"]
+        
+        # Calculate x spacing
+        x_step = chart_width / (len(months) - 1) if len(months) > 1 else chart_width
+        
+        # Find max value for scaling (with a minimum of 5 to prevent division by zero)
+        max_value = max(max(buy_values + sell_values, default=0), 5)
+        y_scale = chart_height / max_value if max_value > 0 else 1
+        
+        # X axis
         painter.setPen(QPen(QColor(ColorPalette.BORDER_LIGHT), 1))
-        painter.drawLine(30, 10, 30, 100)
+        painter.drawLine(
+            margin_left, margin_top + chart_height,
+            margin_left + chart_width, margin_top + chart_height
+        )
         
-        # X-axis line
-        painter.drawLine(30, 100, 500, 100)
+        # Month labels
+        painter.setPen(QColor(ColorPalette.TEXT_SECONDARY))
+        font = QFont()
+        font.setPointSize(8)
+        painter.setFont(font)
         
-        # Draw bars
-        months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-        values = [23, 31, 42, 19, 28, 35, 30, 25, 34, 29, 45, 38]  # Sample data
+        for i, month in enumerate(months):
+            x = margin_left + i * x_step
+            painter.drawText(
+                QRect(x - 15, margin_top + chart_height + 5, 30, 20),
+                Qt.AlignCenter, month
+            )
         
-        max_value = max(values)
-        scale_factor = 80 / max_value  # 80px is the available height
+        # Draw buy line (gradient fill underneath)
+        buy_points = []
+        for i, value in enumerate(buy_values):
+            x = margin_left + i * x_step
+            y = margin_top + chart_height - (value * y_scale)
+            buy_points.append(QPointF(x, y))
         
-        for i, value in enumerate(values):
-            x = 50 + i * (bar_width + gap)
-            bar_height = value * scale_factor
-            y = 100 - bar_height
+        # Only create path and draw if we have points
+        if buy_points:
+            # Create gradient for buy area
+            buy_gradient = QLinearGradient(
+                0, margin_top, 0, margin_top + chart_height
+            )
+            buy_color_start = QColor(ColorPalette.ACCENT_PRIMARY)
+            buy_color_start.setAlpha(100)
+            buy_color_end = QColor(ColorPalette.ACCENT_PRIMARY)
+            buy_color_end.setAlpha(0)
+            buy_gradient.setColorAt(0, buy_color_start)
+            buy_gradient.setColorAt(1, buy_color_end)
             
-            # Main bar gradient
-            gradient = QLinearGradient(0, y, 0, 100)
-            gradient.setColorAt(0, QColor(ColorPalette.ACCENT_PRIMARY))
-            gradient.setColorAt(1, QColor(ColorPalette.ACCENT_INFO))
+            # Create path for buy area
+            buy_path = QPainterPath()
+            buy_path.moveTo(buy_points[0].x(), margin_top + chart_height)
+            for point in buy_points:
+                buy_path.lineTo(point)
+            buy_path.lineTo(buy_points[-1].x(), margin_top + chart_height)
             
-            painter.setBrush(gradient)
-            painter.setPen(Qt.NoPen)
-            painter.drawRoundedRect(x, y, bar_width, bar_height, 4, 4)
+            # Fill buy area
+            painter.fillPath(buy_path, buy_gradient)
             
-            # Month label
-            painter.setPen(QColor(ColorPalette.TEXT_SECONDARY))
-            font = QFont()
-            font.setPointSize(7)
-            painter.setFont(font)
-            painter.drawText(QRect(x - 5, 105, 40, 15), Qt.AlignCenter, months[i])
+            # Draw buy line
+            painter.setPen(QPen(QColor(ColorPalette.ACCENT_PRIMARY), 2))
+            for i in range(len(buy_points) - 1):
+                painter.drawLine(buy_points[i], buy_points[i + 1])
+            
+            # Draw data points for buy line
+            painter.setBrush(QColor(ColorPalette.BG_DARK))
+            for point in buy_points:
+                painter.drawEllipse(point, 4, 4)
+        
+        # Draw sell line (no fill)
+        sell_points = []
+        for i, value in enumerate(sell_values):
+            x = margin_left + i * x_step
+            y = margin_top + chart_height - (value * y_scale)
+            sell_points.append(QPointF(x, y))
+        
+        # Only draw if we have points
+        if sell_points:
+            # Draw sell line
+            painter.setPen(QPen(QColor(ColorPalette.ACCENT_DANGER), 2, Qt.SolidLine))
+            for i in range(len(sell_points) - 1):
+                painter.drawLine(sell_points[i], sell_points[i + 1])
+            
+            # Draw data points for sell line
+            painter.setBrush(QColor(ColorPalette.BG_DARK))
+            for point in sell_points:
+                painter.drawEllipse(point, 4, 4)
+        
+        # Draw legend
+        legend_y = margin_top + chart_height + 20
+        
+        # Buy legend
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QColor(ColorPalette.ACCENT_PRIMARY))
+        painter.drawRect(margin_left, legend_y, 12, 4)
+        
+        painter.setPen(QColor(ColorPalette.TEXT_SECONDARY))
+        painter.drawText(
+            QRect(margin_left + 18, legend_y - 5, 50, 15),
+            Qt.AlignLeft | Qt.AlignVCenter, "Buy Orders"
+        )
+        
+        # Sell legend
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QColor(ColorPalette.ACCENT_DANGER))
+        painter.drawRect(margin_left + 100, legend_y, 12, 4)
+        
+        painter.setPen(QColor(ColorPalette.TEXT_SECONDARY))
+        painter.drawText(
+            QRect(margin_left + 118, legend_y - 5, 50, 15),
+            Qt.AlignLeft | Qt.AlignVCenter, "Sell Orders"
+        )
         
         painter.end()
-        volume_graph.setPixmap(pixmap)
+        timeline_graph.setPixmap(pixmap)
         
-        volume_layout.addWidget(volume_label)
-        volume_layout.addWidget(volume_graph)
+        container_layout.addWidget(timeline_graph)
         
-        container_layout.addLayout(volume_layout)
+        # Calculate real metrics from transaction data
+        transaction_metrics = self._calculate_transaction_metrics()
         
-        # Key metrics in a grid
-        metrics_grid = QGridLayout()
-        metrics_grid.setVerticalSpacing(15)
-        metrics_grid.setHorizontalSpacing(30)
+        # Key metrics in cards using actual data
+        metrics_layout = QHBoxLayout()
+        metrics_layout.setSpacing(15)
         
-        metrics = [
-            {"label": "Average Transaction", "value": "$843.21", "trend": "+5.4%", "positive": True},
-            {"label": "Largest Purchase", "value": "$12,458.00", "trend": "AAPL", "positive": None},
-            {"label": "Most Active Stock", "value": "TSLA", "trend": "24 trades", "positive": None},
-            {"label": "Largest Sale", "value": "$8,743.92", "trend": "MSFT", "positive": None}
-        ]
-        
-        for i, metric in enumerate(metrics):
-            row = i // 2
-            col = i % 2
+        # Create each metric card using real data
+        for metric in transaction_metrics:
+            # Metric card
+            metric_card = QFrame()
+            # Fix: Use correct way to set background with alpha
+            metric_card.setStyleSheet(f"""
+                background-color: {ColorPalette.BG_DARK}40;
+                border-radius: 8px;
+                border-top: 3px solid {metric['color']};
+            """)
             
-            metric_widget = QWidget()
-            metric_layout = QVBoxLayout(metric_widget)
-            metric_layout.setContentsMargins(0, 0, 0, 0)
+            metric_layout = QVBoxLayout(metric_card)
+            metric_layout.setContentsMargins(15, 12, 15, 12)
             metric_layout.setSpacing(3)
             
-            # Label
+            # Metric label
             label = QLabel(metric["label"])
             label.setStyleSheet(f"color: {ColorPalette.TEXT_SECONDARY}; font-size: 12px;")
             
-            # Value
+            # Metric value
             value = QLabel(metric["value"])
             value.setStyleSheet(f"color: {ColorPalette.TEXT_PRIMARY}; font-weight: bold; font-size: 18px;")
             
-            # Trend
-            trend_layout = QHBoxLayout()
-            trend_layout.setContentsMargins(0, 0, 0, 0)
-            trend_layout.setSpacing(5)
-            
-            trend = QLabel(metric["trend"])
-            if metric["positive"] is not None:
-                color = ColorPalette.ACCENT_SUCCESS if metric["positive"] else ColorPalette.ACCENT_DANGER
-                trend.setStyleSheet(f"color: {color}; font-size: 12px;")
-            else:
-                trend.setStyleSheet(f"color: {ColorPalette.TEXT_SECONDARY}; font-size: 12px;")
-            
-            trend_layout.addWidget(trend)
-            trend_layout.addStretch()
+            # Metric detail
+            detail = QLabel(metric["detail"])
+            detail.setStyleSheet(f"color: {metric['color']}; font-size: 12px;")
             
             metric_layout.addWidget(label)
             metric_layout.addWidget(value)
-            metric_layout.addLayout(trend_layout)
+            metric_layout.addWidget(detail)
             
-            metrics_grid.addWidget(metric_widget, row, col)
+            metrics_layout.addWidget(metric_card, 1)
         
-        container_layout.addLayout(metrics_grid)
+        container_layout.addLayout(metrics_layout)
         
         card_layout.addWidget(metrics_container)
         
         return card
     
+
+    def _analyze_monthly_transactions(self):
+        """Analyze transactions by month to generate chart data"""
+        # Dictionary to store monthly data
+        monthly_data = {}
+        
+        try:
+            # Process each transaction
+            for tx in self.user_transactions:
+                # Try to parse the date
+                try:
+                    # Handle different date formats
+                    if 'date' in tx:
+                        date_str = tx['date']
+                        
+                        # Convert string to datetime
+                        if 'T' in date_str:  # ISO format
+                            if '.' in date_str:  # Has microseconds
+                                base, ms_part = date_str.split('.')
+                                # Remove timezone info and Z if present
+                                ms_part = ms_part.rstrip('Z').split('+')[0].split('-')[0]
+                                # Ensure microseconds have exactly 6 digits
+                                ms_part = ms_part.ljust(6, '0')[:6]
+                                date_str = f"{base}.{ms_part}"
+                            
+                            try:
+                                tx_date = datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%S.%f")
+                            except ValueError:
+                                tx_date = datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%S")
+                        else:  # Other formats
+                            # Try different formats
+                            for fmt in ["%Y-%m-%d", "%m/%d/%Y", "%b %d, %Y"]:
+                                try:
+                                    tx_date = datetime.strptime(date_str, fmt)
+                                    break
+                                except ValueError:
+                                    continue
+                            else:
+                                # If all formats fail, skip this transaction
+                                continue
+                    else:
+                        # Skip if no date
+                        continue
+                    
+                    # Extract month for grouping
+                    month_key = tx_date.strftime("%b")
+                    
+                    # Initialize month data if needed
+                    if month_key not in monthly_data:
+                        monthly_data[month_key] = {
+                            "buy_count": 0,
+                            "sell_count": 0,
+                            "buy_volume": 0.0,
+                            "sell_volume": 0.0,
+                            "transactions": []
+                        }
+                    
+                    # Add transaction to the monthly data
+                    monthly_data[month_key]["transactions"].append(tx)
+                    
+                    # Update counts based on transaction type
+                    tx_type = tx.get('transactionType', '').lower()
+                    if tx_type == 'buy':
+                        monthly_data[month_key]["buy_count"] += 1
+                        # Calculate volume if price and quantity are available
+                        if 'price' in tx and 'quantity' in tx:
+                            monthly_data[month_key]["buy_volume"] += tx['price'] * tx['quantity']
+                    elif tx_type == 'sell':
+                        monthly_data[month_key]["sell_count"] += 1
+                        # Calculate volume if price and quantity are available
+                        if 'price' in tx and 'quantity' in tx:
+                            monthly_data[month_key]["sell_volume"] += tx['price'] * tx['quantity']
+                    
+                except Exception as e:
+                    print(f"Error processing transaction date: {e}")
+                    continue
+        
+        except Exception as e:
+            print(f"Error analyzing monthly transactions: {e}")
+        
+        return monthly_data
+
+    def _calculate_transaction_metrics(self):
+        """Calculate real metrics from transaction data"""
+        metrics = []
+        
+        try:
+            # Process all transactions to determine patterns
+            transaction_dates = []
+            transaction_amounts = []
+            stock_counts = {}
+            
+            # Group transactions by day of week
+            day_counts = {0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0}
+            day_names = {
+                0: "Monday", 1: "Tuesday", 2: "Wednesday", 
+                3: "Thursday", 4: "Friday", 5: "Saturday", 6: "Sunday"
+            }
+            
+            # Count transaction types
+            buy_count = 0
+            sell_count = 0
+            
+            for tx in self.user_transactions:
+                # Try to get the date
+                if 'date' in tx:
+                    try:
+                        # Parse date (simplified for this function)
+                        date_str = tx['date']
+                        if 'T' in date_str:
+                            try:
+                                tx_date = datetime.strptime(date_str.split('T')[0], "%Y-%m-%d")
+                            except:
+                                continue
+                        else:
+                            try:
+                                tx_date = datetime.strptime(date_str, "%Y-%m-%d")
+                            except:
+                                try:
+                                    tx_date = datetime.strptime(date_str, "%b %d, %Y")
+                                except:
+                                    continue
+                        
+                        transaction_dates.append(tx_date)
+                        
+                        # Count by day of week
+                        day_of_week = tx_date.weekday()  # 0 = Monday, 6 = Sunday
+                        day_counts[day_of_week] += 1
+                        
+                    except Exception as e:
+                        print(f"Error parsing transaction date: {e}")
+                
+                # Count transaction types
+                tx_type = tx.get('transactionType', '').lower()
+                if tx_type == 'buy':
+                    buy_count += 1
+                elif tx_type == 'sell':
+                    sell_count += 1
+                
+                # Get transaction amount
+                amount = 0
+                if 'price' in tx and 'quantity' in tx:
+                    amount = tx['price'] * tx['quantity']
+                elif 'amount' in tx:
+                    amount = tx['amount']
+                
+                if amount:
+                    transaction_amounts.append(amount)
+                
+                # Count stocks
+                if 'stockSymbol' in tx and tx['stockSymbol']:
+                    stock = tx['stockSymbol']
+                    if stock in stock_counts:
+                        stock_counts[stock] += 1
+                    else:
+                        stock_counts[stock] = 1
+            
+            # Find most active day
+            most_active_day = None
+            most_active_count = 0
+            total_transactions = sum(day_counts.values())
+            
+            if total_transactions > 0:
+                for day, count in day_counts.items():
+                    if count > most_active_count:
+                        most_active_day = day
+                        most_active_count = count
+                
+                # Calculate percentage
+                day_percentage = (most_active_count / total_transactions) * 100 if total_transactions > 0 else 0
+                
+                # Add most active day metric
+                metrics.append({
+                    "label": "Most Active Day",
+                    "value": day_names.get(most_active_day, "N/A"),
+                    "detail": f"{day_percentage:.0f}% of transactions" if most_active_day is not None else "Insufficient data",
+                    "color": ColorPalette.ACCENT_PRIMARY
+                })
+            else:
+                # Fallback if no transaction dates
+                metrics.append({
+                    "label": "Most Active Day",
+                    "value": "N/A",
+                    "detail": "Insufficient data",
+                    "color": ColorPalette.ACCENT_PRIMARY
+                })
+            
+            # Calculate average transaction amount
+            avg_transaction = 0
+            if transaction_amounts:
+                avg_transaction = sum(transaction_amounts) / len(transaction_amounts)
+                
+                metrics.append({
+                    "label": "Average Transaction",
+                    "value": f"${avg_transaction:.2f}",
+                    "detail": f"From {len(transaction_amounts)} transactions",
+                    "color": ColorPalette.ACCENT_SUCCESS
+                })
+            else:
+                metrics.append({
+                    "label": "Average Transaction",
+                    "value": "N/A",
+                    "detail": "No transaction data",
+                    "color": ColorPalette.ACCENT_SUCCESS
+                })
+            
+            # Find most traded stock
+            most_traded_stock = None
+            most_traded_count = 0
+            
+            for stock, count in stock_counts.items():
+                if count > most_traded_count:
+                    most_traded_stock = stock
+                    most_traded_count = count
+            
+            if most_traded_stock:
+                # Get stock name if available
+                stock_name = most_traded_stock
+                if self.stocks_the_user_has and most_traded_stock in self.stocks_the_user_has:
+                    stock_name = self.stocks_the_user_has[most_traded_stock].get('name', most_traded_stock)
+                
+                metrics.append({
+                    "label": "Most Traded Stock",
+                    "value": most_traded_stock,
+                    "detail": f"{most_traded_count} trades",
+                    "color": ColorPalette.ACCENT_INFO
+                })
+            else:
+                metrics.append({
+                    "label": "Most Traded Stock",
+                    "value": "N/A",
+                    "detail": "No stock transactions",
+                    "color": ColorPalette.ACCENT_INFO
+                })
+            
+        except Exception as e:
+            print(f"Error calculating transaction metrics: {e}")
+            
+            # Provide fallback metrics if calculation fails
+            if not metrics:
+                metrics = [
+                    {
+                        "label": "Most Active Day",
+                        "value": "N/A",
+                        "detail": "Data unavailable",
+                        "color": ColorPalette.ACCENT_PRIMARY
+                    },
+                    {
+                        "label": "Average Transaction",
+                        "value": "N/A",
+                        "detail": "Data unavailable",
+                        "color": ColorPalette.ACCENT_SUCCESS
+                    },
+                    {
+                        "label": "Most Traded Stock",
+                        "value": "N/A",
+                        "detail": "Data unavailable",
+                        "color": ColorPalette.ACCENT_INFO
+                    }
+                ]
+        
+        return metrics
+
+
     def _generate_sample_transactions(self):
         """Generate sample transaction data for the table that matches the style of other tables"""
         # Sample data for transactions
