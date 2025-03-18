@@ -186,7 +186,7 @@ class StockItem(QFrame):
                 self.setStyleSheet(f"""
                     background-color: {ColorPalette.ACCENT_PRIMARY};
                     border: none;
-                    border-bottom: {"none" if self.is_last else f"1px solid {ColorPalette.BORDER_DARK}"};
+                    
                     border-radius: 8px;
                 """)
                 return True
@@ -195,7 +195,7 @@ class StockItem(QFrame):
                 self.setStyleSheet(f"""
                     background-color: transparent;
                     border: none;
-                    border-bottom: {"none" if self.is_last else f"1px solid {ColorPalette.BORDER_DARK}"};
+                    
                 """)
                 return True
             elif event.type() == QEvent.MouseButtonPress:
@@ -898,33 +898,12 @@ class PortfolioHeaderWidget(QFrame):
         title_layout.addWidget(welcome_label)
         title_layout.addWidget(title)
         
-        # Action buttons
-        action_layout = QHBoxLayout()
-        action_layout.setSpacing(12)
-        
-        add_funds_btn = QPushButton("Add Funds")
-        add_funds_btn.setStyleSheet(GlobalStyle.PRIMARY_BUTTON)
-        add_funds_btn.setFixedSize(120, 40)
-        add_funds_btn.setCursor(Qt.PointingHandCursor)
-        
-        withdraw_btn = QPushButton("Withdraw")
-        withdraw_btn.setStyleSheet(GlobalStyle.SECONDARY_BUTTON)
-        withdraw_btn.setFixedSize(120, 40)
-        withdraw_btn.setCursor(Qt.PointingHandCursor)
-        
-        settings_btn = QPushButton("Settings")
-        settings_btn.setStyleSheet(GlobalStyle.PRIMARY_BUTTON)
-        settings_btn.setFixedSize(120, 40)
-        settings_btn.setCursor(Qt.PointingHandCursor)
-        
-        action_layout.addWidget(add_funds_btn)
-        action_layout.addWidget(withdraw_btn)
-        action_layout.addWidget(settings_btn)
+
         
         # Combine layouts
         layout.addLayout(title_layout)
         layout.addStretch(1)
-        layout.addLayout(action_layout)
+
 
 class PortfolioPage(QWidget):
     def __init__(self, user=None, user_stocks=None, stocks_the_user_has=None, balance=None, firebaseUserId=None, parent=None):
@@ -1145,22 +1124,13 @@ class PortfolioPage(QWidget):
         performance_card = PortfolioCard()
         performance_layout = performance_card.layout
         
-        # Title
-        performance_title = QLabel("Performance History")
-        performance_title.setStyleSheet(f"""
-            color: {ColorPalette.TEXT_PRIMARY};
-            font-size: 18px;
-            font-weight: bold;
-        """)
-        performance_layout.addWidget(performance_title)
+
         
-        # Add performance chart
-        performance_chart = PerformanceChartWidget()
-        performance_layout.addWidget(performance_chart)
+
         
         # Add to section layout
-        section_layout.addWidget(holdings_card, 3)      # More space for holdings
-        section_layout.addWidget(performance_card, 2)   # Less space for performance
+        section_layout.addWidget(holdings_card, 5)      # More space for holdings
+  # Less space for performance
         
         self.content_layout.addWidget(section)
         
@@ -1307,18 +1277,160 @@ class PortfolioPage(QWidget):
         action_row = QHBoxLayout()
         action_row.setSpacing(10)
         
-        view_all_btn = QPushButton("View All Transactions")
-        view_all_btn.setStyleSheet(GlobalStyle.SECONDARY_BUTTON)
-        view_all_btn.setFixedHeight(35)
+
         
-        export_btn = QPushButton("Export Data")
+        export_btn = QPushButton("Export to csv")
         export_btn.setStyleSheet(GlobalStyle.SECONDARY_BUTTON)
         export_btn.setFixedHeight(35)
+
+        export_btn.clicked.connect(self._export_portfolio_to_csv)
         
-        action_row.addWidget(view_all_btn)
+
         action_row.addStretch(1)
         action_row.addWidget(export_btn)
         
         holdings_layout.addLayout(action_row)
+
         
         return holdings_card
+    
+
+    def _export_portfolio_to_csv(self):
+        """Export portfolio data to a CSV file"""
+        from PySide6.QtWidgets import QFileDialog
+        import csv
+        from datetime import datetime
+        
+        # Get save location from user
+        file_name, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export Portfolio Data",
+            f"portfolio_export_{datetime.now().strftime('%Y%m%d')}.csv",
+            "CSV Files (*.csv)"
+        )
+        
+        # If user cancels, return
+        if not file_name:
+            return
+        
+        try:
+            # Prepare data for export
+            rows = []
+            
+            # Add header row
+            rows.append([
+                "Symbol", 
+                "Name", 
+                "Quantity", 
+                "Current Price ($)", 
+                "Total Value ($)", 
+                "Daily Change (%)",
+                "Sector"
+            ])
+            
+            # Add data rows
+            for stock in self.user_stocks:
+                symbol = stock['stockSymbol']
+                quantity = stock['quantity']
+                
+                if symbol in self.stocks_the_user_has:
+                    stock_details = self.stocks_the_user_has[symbol]
+                    name = stock_details.get('name', symbol)
+                    current_price = stock_details.get('currentPrice', 0)
+                    previous_price = stock_details.get('previousClose', current_price * 0.99)
+                    total_value = current_price * quantity
+                    sector = stock_details.get('sector', 'N/A')
+                    
+                    # Calculate daily change
+                    daily_change = ((current_price - previous_price) / previous_price) * 100
+                    
+                    rows.append([
+                        symbol,
+                        name,
+                        quantity,
+                        f"{current_price:.2f}",
+                        f"{total_value:.2f}",
+                        f"{daily_change:.2f}",
+                        sector
+                    ])
+            
+            # Add summary row
+            total_portfolio_value = self._calculate_total_portfolio_value()
+            rows.append([])  # Empty row for separation
+            rows.append([
+                "TOTAL",
+                "",
+                "",
+                "",
+                f"{total_portfolio_value:.2f}",
+                "",
+                ""
+            ])
+            
+            # Add cash balance
+            rows.append([
+                "CASH",
+                "Cash Balance",
+                "",
+                "",
+                f"{self.balance:.2f}",
+                "",
+                ""
+            ])
+            
+            # Add total assets
+            rows.append([
+                "TOTAL ASSETS",
+                "",
+                "",
+                "",
+                f"{total_portfolio_value + self.balance:.2f}",
+                "",
+                ""
+            ])
+            
+            # Add export timestamp
+            rows.append([])  # Empty row for separation
+            rows.append([f"Exported on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"])
+            
+            # Write to CSV file
+            with open(file_name, 'w', newline='') as csvfile:
+                writer = csv.writer(csvfile)
+                writer.writerows(rows)
+                
+            # Show success message
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.information(
+                self,
+                "Export Successful",
+                f"Portfolio data has been exported to:\n{file_name}"
+            )
+            
+        except Exception as e:
+            # Show error message
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.critical(
+                self,
+                "Export Failed",
+                f"An error occurred while exporting the data:\n{str(e)}"
+            )
+
+    def _connect_button_actions(self):
+        """Connect button actions in the portfolio page"""
+        # Find the export button in the holdings card
+        for i in range(self.details_section_layout.count()):
+            widget = self.details_section_layout.itemAt(i).widget()
+            if isinstance(widget, PortfolioCard):
+                # Look through the layouts in the card
+                for j in range(widget.layout.count()):
+                    item = widget.layout.itemAt(j)
+                    # Check if it's a layout
+                    if item and not item.widget():
+                        layout = item.layout()
+                        if layout:
+                            # Look for the export button in this layout
+                            for k in range(layout.count()):
+                                btn = layout.itemAt(k).widget()
+                                if isinstance(btn, QPushButton) and btn.text() == "Export Data":
+                                    # Connect the export button
+                                    btn.clicked.connect(self._export_portfolio_to_csv)

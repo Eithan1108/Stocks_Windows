@@ -524,56 +524,15 @@ class TransactionsPage(QWidget):
         title = QLabel("Recent Transactions")
         title.setStyleSheet(GlobalStyle.SUBHEADER_STYLE)
         
-        # Filter dropdown to replace search box
-        filter_combo = QComboBox()
-        filter_combo.addItems(["All Transactions", "Buy Orders", "Sell Orders", "Deposits", "Withdrawals", "Dividends"])
-        filter_combo.setFixedWidth(200)
-        filter_combo.setStyleSheet(f"""
-            QComboBox {{
-                background-color: {ColorPalette.BG_DARK};
-                color: {ColorPalette.TEXT_PRIMARY};
-                border: none;
-                border-radius: 6px;
-                padding: 8px 12px;
-                min-height: 36px;
-            }}
-            QComboBox::drop-down {{
-                border: none;
-                width: 24px;
-            }}
-            QComboBox::down-arrow {{
-                image: url(Icons/dropdown_arrow.png);
-                width: 12px;
-                height: 12px;
-            }}
-            QComboBox QAbstractItemView {{
-                background-color: {ColorPalette.BG_DARK};
-                color: {ColorPalette.TEXT_PRIMARY};
-                border: 1px solid {ColorPalette.BORDER_DARK};
-                border-radius: 6px;
-                selection-background-color: {ColorPalette.ACCENT_PRIMARY}30;
-            }}
-        """)
         
-        search_box = QLineEdit()
-        search_box.setPlaceholderText("Search transactions...")
-        search_box.setFixedWidth(200)
-        search_box.setStyleSheet(f"""
-            QLineEdit {{
-                background-color: {ColorPalette.BG_DARK};
-                color: {ColorPalette.TEXT_PRIMARY};
-                border: none;
-                border-radius: 6px;
-                padding: 8px 12px;
-                min-height: 36px;
-            }}
-        """)
+        
+        
         
         header_layout.addWidget(title)
         header_layout.addStretch()
-        header_layout.addWidget(filter_combo)
+
         header_layout.addSpacing(10)
-        header_layout.addWidget(search_box)
+
         
         history_layout.addLayout(header_layout)
         
