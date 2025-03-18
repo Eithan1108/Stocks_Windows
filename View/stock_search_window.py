@@ -19,6 +19,9 @@ from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
                              QFormLayout, QDialogButtonBox, QMessageBox)
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.figure import Figure
 
 
 class PurchaseDialog(QDialog):
@@ -340,6 +343,136 @@ class PurchaseDialog(QDialog):
         """)
         success_msg.exec_()
 
+class StockChartWidget(QWidget):
+    """Widget for displaying stock price history chart"""
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.layout = QVBoxLayout(self)
+        self.layout.setContentsMargins(0, 0, 0, 0)
+        self.layout.setSpacing(0)
+        
+        # Add chart title
+        self.chart_title = QLabel("Price History")
+        self.chart_title.setStyleSheet(f"""
+            color: {ColorPalette.TEXT_PRIMARY};
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        """)
+        self.layout.addWidget(self.chart_title)
+        
+        # Create matplotlib figure
+        self.figure = Figure(figsize=(5, 3), dpi=100)
+        self.figure.patch.set_facecolor('none')  # Transparent background
+        self.canvas = FigureCanvas(self.figure)
+        self.canvas.setStyleSheet("background-color: transparent;")
+        
+        # Add to layout
+        self.layout.addWidget(self.canvas)
+        
+        # Empty message when no data available
+        self.no_data_label = QLabel("No historical data available")
+        self.no_data_label.setAlignment(Qt.AlignCenter)
+        self.no_data_label.setStyleSheet(f"""
+            color: {ColorPalette.TEXT_SECONDARY};
+            font-size: 14px;
+            padding: 20px;
+        """)
+        self.no_data_label.setVisible(False)
+        self.layout.addWidget(self.no_data_label)
+        
+        # Initialize empty plot
+        self.ax = self.figure.add_subplot(111)
+        self.ax.set_facecolor('none')  # Transparent plot background
+        
+        # Set grid and tick colors for dark theme
+        self.ax.grid(True, color=ColorPalette.BORDER_DARK, linestyle='-', linewidth=0.5, alpha=0.5)
+        self.ax.tick_params(colors=ColorPalette.TEXT_SECONDARY, which='both')
+        for spine in self.ax.spines.values():
+            spine.set_color(ColorPalette.BORDER_DARK)
+            
+        # Empty initial state
+        self.reset_chart()
+    
+    def reset_chart(self):
+        """Reset the chart to empty state"""
+        self.ax.clear()
+        self.ax.set_facecolor('none')
+        self.ax.grid(True, color=ColorPalette.BORDER_DARK, linestyle='-', linewidth=0.5, alpha=0.5)
+        self.ax.tick_params(colors=ColorPalette.TEXT_SECONDARY, which='both')
+        for spine in self.ax.spines.values():
+            spine.set_color(ColorPalette.BORDER_DARK)
+        self.canvas.draw()
+        
+    def update_chart(self, history_data):
+        """Update the chart with new stock history data"""
+        if not history_data or len(history_data) == 0:
+            self.no_data_label.setVisible(True)
+            self.canvas.setVisible(False)
+            return
+        
+        self.no_data_label.setVisible(False)
+        self.canvas.setVisible(True)
+        
+        # Reset chart
+        self.ax.clear()
+        
+        # Extract dates and closing prices
+        dates = [item['date'] for item in history_data]
+        close_prices = [item['close'] for item in history_data]
+        
+        # Determine line color based on price trend
+        line_color = ColorPalette.ACCENT_SUCCESS if close_prices[-1] >= close_prices[0] else ColorPalette.ACCENT_DANGER
+        
+        # Plot the data
+        self.ax.plot(dates, close_prices, marker='o', linestyle='-', color=line_color, linewidth=2, markersize=4)
+        
+        # Fill the area under the plot with a transparent color
+        self.ax.fill_between(dates, close_prices, color=line_color, alpha=0.1)
+        
+        # Customize the chart
+        self.ax.set_facecolor('none')
+        self.ax.grid(True, color=ColorPalette.BORDER_DARK, linestyle='-', linewidth=0.5, alpha=0.5)
+        self.ax.tick_params(colors=ColorPalette.TEXT_SECONDARY, which='both')
+        
+        # Customize spines
+        for spine in self.ax.spines.values():
+            spine.set_color(ColorPalette.BORDER_DARK)
+        
+        # Format the X-axis for dates
+        if len(dates) > 10:
+            # If many dates, show fewer labels to avoid clutter
+            self.ax.set_xticks(self.ax.get_xticks()[::max(1, len(dates)//5)])
+        
+        # Add labels for min and max prices
+        min_price = min(close_prices)
+        max_price = max(close_prices)
+        min_index = close_prices.index(min_price)
+        max_index = close_prices.index(max_price)
+        
+        self.ax.annotate(f"${min_price:.2f}", 
+                        xy=(dates[min_index], min_price),
+                        xytext=(0, -15),
+                        textcoords="offset points",
+                        ha='center',
+                        color=ColorPalette.ACCENT_DANGER,
+                        fontsize=8)
+                        
+        self.ax.annotate(f"${max_price:.2f}", 
+                        xy=(dates[max_index], max_price),
+                        xytext=(0, 10),
+                        textcoords="offset points",
+                        ha='center',
+                        color=ColorPalette.ACCENT_SUCCESS,
+                        fontsize=8)
+                        
+        # Auto adjust plot to fit data
+        self.figure.tight_layout()
+        
+        # Redraw the canvas
+        self.canvas.draw()
+
 class Card(QFrame):
     def __init__(self, title="", content="", parent=None, min_height=150):
         super().__init__(parent)
@@ -541,7 +674,25 @@ class StockInfoCard(Card):
         button_layout = QHBoxLayout()
         button_layout.setContentsMargins(0, 10, 0, 0)
         
+        # Add chart section after the stats section and before the buttons
+        chart_container = QFrame()
+        chart_container.setStyleSheet(f"""
+            background-color: {ColorPalette.BG_CARD};
+            border-radius: 6px;
+            margin-top: 10px;
+        """)
+        chart_layout = QVBoxLayout(chart_container)
+        chart_layout.setContentsMargins(10, 10, 10, 10)
 
+        # Create chart widget
+        self.chart_widget = StockChartWidget()
+        chart_layout.addWidget(self.chart_widget)
+
+        # Insert before the button layout
+        main_layout.addWidget(chart_container)
+
+        # Store history data
+        self.stock_history = []
         
         # Buy button
         self.buy_btn = QPushButton("Buy")
@@ -565,6 +716,11 @@ class StockInfoCard(Card):
         self.buy_btn.clicked.connect(self._show_purchase_dialog)
 
     
+    def update_chart_data(self, history_data):
+        """Update the chart with history data"""
+        self.stock_history = history_data
+        self.chart_widget.update_chart(history_data)
+
     def _add_stat_item(self, layout, label_text, value_text):
         """Add a statistic item to the given layout"""
         container = QWidget()
@@ -708,6 +864,14 @@ class StockSearchWindow(QWidget):
         return self.search_bar.text()
         
 
+    def set_stock_history(self, history_data):
+        """Set the stock history data"""
+        self.stock_history = history_data
+        
+        # If we already have a stock card, update it
+        if hasattr(self, 'stock_card') and self.stock_card:
+            self.stock_card.update_chart_data(history_data)
+
     def set_presenter(self, presenter):
         """
         Set the presenter for this view
@@ -843,12 +1007,15 @@ class StockSearchWindow(QWidget):
                 self.content_layout.removeWidget(widget)
                 widget.deleteLater()
     
-    def _show_search_results(self, results):
+    def _show_search_results(self, results, history):
         """Display the search results"""
         self._clear_results()
         for stock in results:
             self.stock_card = StockInfoCard(stock)
             self.content_layout.addWidget(self.stock_card)
+
+        self.stock_history = history
+        self.stock_card.update_chart_data(self.stock_history)
         
         # Add spacer at the end for better layout
         self.content_layout.addStretch()

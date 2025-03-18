@@ -1,5 +1,6 @@
 # Modified StocksPresenter class with dialog handling fixes
 from event_system import event_system
+from datetime import date
 
 class StocksPresenter:
     def __init__(self, view, model):
@@ -37,7 +38,7 @@ class StocksPresenter:
                 break
             
 
-        
+        now_date = date.today()
         # Clear previous results
         self.view._clear_results()
         
@@ -50,10 +51,10 @@ class StocksPresenter:
         # Get results from model
         if self.is_symbol:
             print("Searching by symbol")
-            api_results = self.model.search_stocks(search_text)
+            api_results, history = self.model.search_stocks(search_text, now_date) # now_date is a variable that contains the current date in the format yyyy-mm-dd
         else:
             print("Searching by name")
-            api_results = self.model.search_stocks_by_name(search_text)
+            api_results, history = self.model.search_stocks_by_name(search_text, now_date)
         
         if not api_results:
             self.view.initial_message.setVisible(False)
@@ -65,7 +66,7 @@ class StocksPresenter:
         
         # Display results or no results message
         if formatted_results:
-            self.view._show_search_results(formatted_results)
+            self.view._show_search_results(formatted_results, history)
             self.view.initial_message.setVisible(False)
             self.view.no_results_message.setVisible(False)
             

@@ -523,9 +523,6 @@ class LoginPage(QWidget):
         return signup_widget
 
 
-
-
-
 class LoginInputEventFilter(QObject):
     """Event filter to handle input field focus events"""
     

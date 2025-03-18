@@ -1,12 +1,13 @@
 # Model/Stocks/stocks_model.py
 import requests
 import json
+from datetime import timedelta
 
 class StocksModel:
     def __init__(self):
         self.api_base_url = "http://localhost:5000/api/stocks/prices"
     
-    def search_stocks(self, symbol):
+    def search_stocks(self, symbol, now_date):
         """Search stocks based on the provided symbol"""
         print(f"Searching for stock: {symbol}")
         
@@ -16,8 +17,9 @@ class StocksModel:
             
             if response.status_code == 200:
                 data = response.json()
+                history = self.get_stock_history(symbol, now_date)
                 print(f"API response: {json.dumps(data, indent=2)}")
-                return data
+                return data, history
             else:
                 print(f"Error fetching stocks: {response.status_code}")
                 return None
@@ -26,7 +28,7 @@ class StocksModel:
             print(f"Exception during API request: {str(e)}")
             return None
         
-    def search_stocks_by_name(self, name):
+    def search_stocks_by_name(self, name, now_date):
         """Search stocks based on the provided symbol"""
         print(f"Searching for stock: {name}")
         
@@ -40,8 +42,9 @@ class StocksModel:
                 # Gets the symbol from this {"symbol":"AAPL"} and calls the search_stocks function
                 symbol = data.get("symbol")
                 response = requests.post(self.api_base_url, json={"tickers": [symbol]})
+                history = self.get_stock_history(symbol, now_date)
                 data = response.json()
-                return data
+                return data, history
             else:
                 print(f"Error fetching stocks: {response}")
                 return None
@@ -146,3 +149,23 @@ class StocksModel:
             print(f"Error fetching balance: {str(e)}")
             # Return dummy balance for testing
             return 500.00
+        
+
+    def get_stock_history(self, symbol, now_date):
+        """Get historical data for a stock"""
+        last_week = now_date - timedelta(days=7)
+        # Format to YYYY-MM-DD
+        last_week_str = last_week.strftime("%Y-%m-%d")
+        now_date_str = now_date.strftime("%Y-%m-%d")
+        try:
+            response = requests.get(f"http://localhost:5000/api/stocks/history?ticker={symbol}&startDate={last_week_str}&endDate={now_date_str}")
+            if response.status_code == 200:
+                data = response.json()
+                print(f"API response for get_stock_history: {data}")
+                return data
+            else:
+                print(f"Failed to get stock history. Status code: {response}")
+                return None
+        except Exception as e:
+            print(f"Error fetching stock history: {str(e)}")
+            return
