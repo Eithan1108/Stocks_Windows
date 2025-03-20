@@ -23,7 +23,7 @@ class AuthModel:
             return False, "email", "Invalid email address"
         try:
             response = requests.post(
-                "http://localhost:5000/api/user/login",
+                "http://localhost:5000/api/user-query/login",
                 json={
                     "email": email,
                     "password": password
@@ -67,7 +67,7 @@ class AuthModel:
         
         try:
             response = requests.post(
-                "http://localhost:5000/api/user/register",
+                "http://localhost:5000/api/user-command/register",
                 json={
                     "username": name,
                     "email": email,
@@ -103,7 +103,7 @@ class AuthModel:
             print(f"Sending Google token to backend: {id_token[:20]}...")
             
             response = requests.post(
-                f"{self.api_base_url}/login-google",
+                f"http://localhost:5000/api/user-command/login-google",
                 json={"idToken": id_token}
             )
                         
@@ -134,7 +134,7 @@ class AuthModel:
     def get_user_info(self, user_id):
         """Get user information from the API"""
         try:
-            response = requests.get(f"{self.api_base_url}/{user_id}")
+            response = requests.get(f"http://localhost:5000/api/user-query/{user_id}")
             if response.status_code == 200:
                 user_data = response.json()
                 return user_data
@@ -147,7 +147,7 @@ class AuthModel:
     def get_user_stocks(self, user_id):
         """Get user's stock portfolio from the API"""
         try:
-            response = requests.get(f"{self.api_base_url}/{user_id}/stocks")
+            response = requests.get(f"http://localhost:5000/api/user-query/{user_id}/stocks")
             if response.status_code == 200:
                 stocks_data = response.json()
                 return stocks_data
@@ -160,7 +160,7 @@ class AuthModel:
     def get_user_transactions(self, user_id):
         """Get user's transaction history from the API"""
         try:
-            response = requests.get(f"{self.api_base_url}/{user_id}/transactions")
+            response = requests.get(f"http://localhost:5000/api/user-query/{user_id}/transactions")
             if response.status_code == 200:
                 transactions_data = response.json()
                 return transactions_data
@@ -174,7 +174,7 @@ class AuthModel:
         """Get user's account balance from the API"""
         print(f"Getting balance for user with ID from model: {firebaseId}")
         try:
-            response = requests.get("http://localhost:5000/api/user/balance/"+firebaseId)
+            response = requests.get("http://localhost:5000/api/user-query/balance/"+firebaseId)
             if response.status_code == 200:
                 # Get the balance from {'balance': 0.0}
                 return response.json()["balance"]
@@ -190,7 +190,7 @@ class AuthModel:
         now = date.today()
         now = now.strftime("%Y-%m-%d")
         try:
-            response = requests.get(f"http://localhost:5000/api/stocks/history?ticker={symbol}&startDate={year}&endDate={now}")
+            response = requests.get(f"http://localhost:5000/api/stocks-query/history?ticker={symbol}&startDate={year}&endDate={now}")
             if response.status_code == 200:
                 data = response.json()
                 print(f"API response for get_stock_history: {data}")
@@ -209,7 +209,7 @@ class AuthModel:
         try:
             # Make a post request to the API with the stock name
             
-            response = requests.post("http://localhost:5000/api/stocks/prices", json={"tickers": stocks})
+            response = requests.post("http://localhost:5000/api/stocks-query/prices", json={"tickers": stocks})
             
             if response.status_code == 200:
                 data = response.json()

@@ -12,7 +12,7 @@ class DashboardModel:
         """Get user's stock portfolio from the API"""
         try:
             
-            response = requests.get("http://localhost:5000/api/user/" + user_id + "/stocks")
+            response = requests.get("http://localhost:5000/api/user-query/" + user_id + "/stocks")
             if response.status_code == 200:
                 stocks_data = response.json()
                 return stocks_data
@@ -29,7 +29,7 @@ class DashboardModel:
         """Get user's transaction history from the API"""
         try:
             
-            response = requests.get("http://localhost:5000/api/user/" + user_id + "/transactions")
+            response = requests.get("http://localhost:5000/api/user-query/" + user_id + "/transactions")
             if response.status_code == 200:
                 transactions_data = response.json()
                 return transactions_data
@@ -51,7 +51,7 @@ class DashboardModel:
         try:
             # Make a post request to the API with the stock name
             
-            response = requests.post("http://localhost:5000/api/stocks/prices", json={"tickers": stocks})
+            response = requests.post("http://localhost:5000/api/stocks-query/prices", json={"tickers": stocks})
             
             if response.status_code == 200:
                 data = response.json()

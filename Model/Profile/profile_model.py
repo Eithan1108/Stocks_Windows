@@ -6,7 +6,7 @@ class ProfileModel:
         """Fetch user data from the API"""
         try:
             import requests
-            response = requests.get(f"{self.api_base_url}/user/{firebase_id}")
+            response = requests.get(f"{self.api_base_url}/user-query/{firebase_id}")
             if response.status_code == 200:
                 return response.json()
             else:
@@ -30,7 +30,7 @@ class ProfileModel:
         """Get the current balance for a user"""
         try:
             import requests
-            response = requests.get(f"{self.api_base_url}/user/balance/{firebase_id}")
+            response = requests.get(f"{self.api_base_url}/user-query/balance/{firebase_id}")
             if response.status_code == 200:
                 data = response.json()
                 return data.get("balance")
@@ -48,7 +48,7 @@ class ProfileModel:
         try:
             import requests
             amount_float = float(amount)
-            response = requests.post(f"{self.api_base_url}/user/balance/update", 
+            response = requests.post(f"{self.api_base_url}/user-command/balance/update", 
                                    json={
                                        "firebaseUserId": firebase_id,
                                        "amountChange": amount_float

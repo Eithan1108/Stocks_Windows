@@ -13,7 +13,7 @@ class StocksModel:
         
         try:
             # Make a post request to the API with the stock name
-            response = requests.post(self.api_base_url, json={"tickers": [symbol]})
+            response = requests.post("http://localhost:5000/api/stocks-query/prices", json={"tickers": [symbol]})
             
             if response.status_code == 200:
                 data = response.json()
@@ -34,14 +34,14 @@ class StocksModel:
         
         try:
             # Make a post request to the API with the stock name
-            response = requests.get("http://localhost:5000/api/stocks/search?query="+name)
+            response = requests.get("http://localhost:5000/api/stocks-query/search?query="+name)
             
             if response.status_code == 200:
                 data = response.json()
                 print(f"API response from search_stocks_by_name: {response}")
                 # Gets the symbol from this {"symbol":"AAPL"} and calls the search_stocks function
                 symbol = data.get("symbol")
-                response = requests.post(self.api_base_url, json={"tickers": [symbol]})
+                response = requests.post("http://localhost:5000/api/stocks-query/prices", json={"tickers": [symbol]})
                 history = self.get_stock_history(symbol, now_date)
                 data = response.json()
                 return data, history
@@ -59,7 +59,7 @@ class StocksModel:
         
         try:
             # Make a post request to the API with the stock name and quantity
-            response = requests.post("http://localhost:5000/api/stocks/buy", json={
+            response = requests.post("http://localhost:5000/api/stocks-command/buy", json={
                 "firebaseUserId": firebaseId,
                 "stockSymbol": symbol,
                 "quantity": int(quantity)
@@ -82,7 +82,7 @@ class StocksModel:
         """Get user's stock portfolio from the API"""
         try:
             
-            response = requests.get("http://localhost:5000/api/user/" + user_id + "/stocks")
+            response = requests.get("http://localhost:5000/api/user-query/" + user_id + "/stocks")
             if response.status_code == 200:
                 stocks_data = response.json()
                 return stocks_data
@@ -99,7 +99,7 @@ class StocksModel:
         """Get user's transaction history from the API"""
         try:
             
-            response = requests.get("http://localhost:5000/api/user/" + user_id + "/transactions")
+            response = requests.get("http://localhost:5000/api/user-query/" + user_id + "/transactions")
             if response.status_code == 200:
                 transactions_data = response.json()
                 return transactions_data
@@ -119,7 +119,7 @@ class StocksModel:
         try:
             # Make a post request to the API with the stock name
             
-            response = requests.post("http://localhost:5000/api/stocks/prices", json={"tickers": stocks})
+            response = requests.post("http://localhost:5000/api/stocks-query/prices", json={"tickers": stocks})
             
             if response.status_code == 200:
                 data = response.json()
@@ -137,7 +137,7 @@ class StocksModel:
         """Get the current balance for a user"""
         try:
             import requests
-            response = requests.get(f"{self.api_base_url}/user/balance/{firebase_id}")
+            response = requests.get(f"{self.api_base_url}/user-query/balance/{firebase_id}")
             if response.status_code == 200:
                 data = response.json()
                 return data.get("balance")
@@ -157,7 +157,7 @@ class StocksModel:
         # Format to YYYY-MM-DD
         now_date_str = now_date.strftime("%Y-%m-%d")
         try:
-            response = requests.get(f"http://localhost:5000/api/stocks/history?ticker={symbol}&startDate={last_week}&endDate={now_date_str}")
+            response = requests.get(f"http://localhost:5000/api/stocks-query/history?ticker={symbol}&startDate={last_week}&endDate={now_date_str}")
             if response.status_code == 200:
                 data = response.json()
                 print(f"API response for get_stock_history: {data}")

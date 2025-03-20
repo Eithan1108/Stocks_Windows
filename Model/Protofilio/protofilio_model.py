@@ -8,7 +8,7 @@ class PortfolioModel:
         """Sell a stock from the portfolio"""
         print(f"Selling {quantity} shares of {symbol} now in the model")
 
-        response = requests.post("http://localhost:5000/api/stocks/sell", json={
+        response = requests.post("http://localhost:5000/api/stocks-command/sell", json={
             "firebaseUserId": firebaseUserId,
             "stockSymbol": symbol,
             "quantity": quantity
@@ -26,7 +26,7 @@ class PortfolioModel:
         """Get user's stock portfolio from the API"""
         try:
             
-            response = requests.get("http://localhost:5000/api/user/" + user_id + "/stocks")
+            response = requests.get("http://localhost:5000/api/user-query/" + user_id + "/stocks")
             if response.status_code == 200:
                 stocks_data = response.json()
                 return stocks_data
@@ -40,7 +40,7 @@ class PortfolioModel:
         """Get user's transaction history from the API"""
         try:
             
-            response = requests.get("http://localhost:5000/api/user/" + user_id + "/transactions")
+            response = requests.get("http://localhost:5000/api/user-query/" + user_id + "/transactions")
             if response.status_code == 200:
                 transactions_data = response.json()
                 return transactions_data
@@ -62,7 +62,7 @@ class PortfolioModel:
         try:
             # Make a post request to the API with the stock name
             
-            response = requests.post("http://localhost:5000/api/stocks/prices", json={"tickers": stocks})
+            response = requests.post("http://localhost:5000/api/stocks-query/prices", json={"tickers": stocks})
             
             if response.status_code == 200:
                 data = response.json()
@@ -80,7 +80,7 @@ class PortfolioModel:
         """Get the current balance for a user"""
         try:
             import requests
-            response = requests.get(f"{self.api_base_url}/user/balance/{firebase_id}")
+            response = requests.get(f"{self.api_base_url}/user-query/balance/{firebase_id}")
             if response.status_code == 200:
                 data = response.json()
                 return data.get("balance")
